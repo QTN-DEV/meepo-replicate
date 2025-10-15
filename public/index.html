@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nano Banana Playground</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="panel panel--input">
+        <header class="panel__header">
+          <nav class="tab-bar">
+            <button class="tab active">Form</button>
+            <button class="tab">JSON</button>
+            <button class="tab">Node.js</button>
+            <button class="tab">Python</button>
+            <button class="tab">HTTP</button>
+          </nav>
+        </header>
+
+        <div class="cta-switch">
+          <button class="cta-switch__button active" data-model-button="seedream">
+            <span>Create</span>
+            <small>Generate a brand new scene</small>
+          </button>
+          <button class="cta-switch__button" data-model-button="nano-banana">
+            <span>Revise</span>
+            <small>Transform an existing concept</small>
+          </button>
+        </div>
+
+        <div class="form-wrapper">
+          <form id="seedream-form" class="form form--active" data-model="seedream">
+            <label class="field">
+              <span class="field__label">
+                T prompt <span class="required">*</span> <span class="type-hint">string</span>
+              </span>
+              <textarea
+                id="seedream-prompt"
+                name="prompt"
+                class="field__control field__control--textarea"
+                rows="6"
+                required
+              ></textarea>
+              <span class="field__hint">Shift + Return to add a new line</span>
+            </label>
+
+            <label class="field">
+              <span class="field__label">
+                image_input <span class="type-hint">file[]</span>
+              </span>
+              <div class="dropzone">
+                <input id="seedream-image-input" type="file" name="image_input" multiple />
+                <span>Add multiple files</span>
+              </div>
+            </label>
+
+            <label class="field">
+              <span class="field__label">
+                size <span class="type-hint">string</span>
+              </span>
+              <select id="seedream-size" name="size" class="field__control">
+                <option value="1K">1K (1024px)</option>
+                <option value="2K" selected>2K (2048px)</option>
+                <option value="4K">4K (4096px)</option>
+                <option value="custom">custom</option>
+              </select>
+              <span class="field__hint">Image resolution. Use &quot;custom&quot; for specific dimensions.</span>
+            </label>
+
+            <label class="field">
+              <span class="field__label">
+                aspect_ratio <span class="type-hint">string</span>
+              </span>
+              <select id="seedream-aspect-ratio" name="aspect_ratio" class="field__control">
+                <option value="match_input_image">match_input_image</option>
+                <option value="1:1">1:1</option>
+                <option value="4:3">4:3</option>
+                <option value="3:2">3:2</option>
+                <option value="16:9" selected>16:9</option>
+                <option value="9:16">9:16</option>
+              </select>
+              <span class="field__hint">Aspect ratio for the generated image.</span>
+            </label>
+
+            <div class="field field--range" data-size-dependent>
+              <div class="field__label-row">
+                <span class="field__label">
+                  # width <span class="type-hint">integer</span>
+                </span>
+                <span class="range-value" data-range-value="seedream-width">2048</span>
+              </div>
+              <input
+                id="seedream-width"
+                type="range"
+                name="width"
+                min="1024"
+                max="4096"
+                step="64"
+                value="2048"
+              />
+              <span class="field__hint">(minimum: 1024, maximum: 4096)</span>
+            </div>
+
+            <div class="field field--range" data-size-dependent>
+              <div class="field__label-row">
+                <span class="field__label">
+                  # height <span class="type-hint">integer</span>
+                </span>
+                <span class="range-value" data-range-value="seedream-height">2048</span>
+              </div>
+              <input
+                id="seedream-height"
+                type="range"
+                name="height"
+                min="1024"
+                max="4096"
+                step="64"
+                value="2048"
+              />
+              <span class="field__hint">(minimum: 1024, maximum: 4096)</span>
+            </div>
+
+            <label class="field">
+              <span class="field__label">
+                sequential_image_generation <span class="type-hint">string</span>
+              </span>
+              <select
+                id="seedream-sequential"
+                name="sequential_image_generation"
+                class="field__control"
+              >
+                <option value="disabled" selected>disabled</option>
+                <option value="auto">auto</option>
+              </select>
+              <span class="field__hint">
+                Control story-style sequences. &quot;disabled&quot; produces a single image.
+              </span>
+            </label>
+
+            <div class="field field--range">
+              <div class="field__label-row">
+                <span class="field__label">
+                  # max_images <span class="type-hint">integer</span>
+                </span>
+                <span class="range-value" data-range-value="seedream-max-images">1</span>
+              </div>
+              <input
+                id="seedream-max-images"
+                type="range"
+                name="max_images"
+                min="1"
+                max="15"
+                step="1"
+                value="1"
+              />
+              <span class="field__hint">Total images (input + generated) cannot exceed 15.</span>
+            </div>
+
+            <div class="form__actions">
+              <button type="button" class="ghost-button" data-role="reset">
+                Reset to default inputs
+              </button>
+              <button type="submit" class="primary-button" data-role="run">
+                Run <span class="keyboard-hint">(cmd+enter)</span>
+              </button>
+            </div>
+          </form>
+
+          <form id="revise-form" class="form form--hidden" data-model="nano-banana">
+            <label class="field">
+              <span class="field__label">
+                T prompt <span class="required">*</span> <span class="type-hint">string</span>
+              </span>
+              <textarea
+                id="revise-prompt"
+                name="prompt"
+                class="field__control field__control--textarea"
+                rows="6"
+                required
+              ></textarea>
+              <span class="field__hint">Shift + Return to add a new line</span>
+            </label>
+
+            <label class="field">
+              <span class="field__label">
+                image_input <span class="type-hint">file[]</span>
+              </span>
+              <div class="dropzone">
+                <input id="revise-image-input" type="file" name="image_input" multiple />
+                <span>Add multiple files</span>
+              </div>
+            </label>
+
+            <label class="field">
+              <span class="field__label">
+                aspect_ratio <span class="type-hint">string</span>
+              </span>
+              <select id="revise-aspect-ratio" name="aspect_ratio" class="field__control">
+                <option value="16:9" selected>16:9</option>
+                <option value="1:1">1:1</option>
+                <option value="9:16">9:16</option>
+                <option value="3:2">3:2</option>
+                <option value="2:3">2:3</option>
+              </select>
+              <span class="field__hint">Aspect ratio of the generated image</span>
+            </label>
+
+            <label class="field">
+              <span class="field__label">
+                output_format <span class="type-hint">string</span>
+              </span>
+              <select id="revise-output-format" name="output_format" class="field__control">
+                <option value="jpg" selected>jpg</option>
+                <option value="png">png</option>
+                <option value="webp">webp</option>
+              </select>
+              <span class="field__hint">Format of the output image</span>
+            </label>
+
+            <div class="form__actions">
+              <button type="button" class="ghost-button" data-role="reset">
+                Reset to default inputs
+              </button>
+              <button type="submit" class="primary-button" data-role="run">
+                Run <span class="keyboard-hint">(cmd+enter)</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </aside>
+
+      <main class="panel panel--output">
+        <header class="panel__header panel__header--spaced">
+          <div class="tab-bar tab-bar--compact">
+            <button class="tab active" data-output-tab="preview">Preview</button>
+            <button class="tab" data-output-tab="json">JSON</button>
+          </div>
+        </header>
+
+        <section class="output">
+          <div class="output__preview" id="output-preview">
+            <div class="preview-placeholder">
+              <span>Generated image will appear here</span>
+            </div>
+          </div>
+
+          <pre class="output__json hidden" id="output-json"></pre>
+
+          <div class="output__meta">
+            <div class="meta-line">
+              <span>Generated in</span>
+              <strong id="generated-time">—</strong>
+            </div>
+            <div class="meta-actions">
+              <button type="button" class="ghost-button" id="tweak-button">Tweak it</button>
+              <button type="button" class="ghost-button" id="iterate-button">Iterate in playground</button>
+              <button type="button" class="ghost-button" id="share-button">Share</button>
+              <button type="button" class="ghost-button" id="download-button" disabled>Download</button>
+              <button type="button" class="ghost-button" id="report-button">Report</button>
+              <button type="button" class="ghost-button" id="view-logs-button">Show logs</button>
+            </div>
+          </div>
+          <div class="meta-secondary">
+            <button type="button" class="outline-button" id="view-prediction-button">View full prediction</button>
+            <button type="button" class="danger-button" id="delete-button">Delete</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>
