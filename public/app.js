@@ -10,6 +10,7 @@ const iterateButton = document.getElementById("iterate-button");
 const shareButton = document.getElementById("share-button");
 const viewPredictionButton = document.getElementById("view-prediction-button");
 const deleteButton = document.getElementById("delete-button");
+const seedreamRefineButton = document.getElementById("seedream-refine-button");
 
 const modelButtons = document.querySelectorAll("[data-model-button]");
 const outputTabs = document.querySelectorAll("[data-output-tab]");
@@ -501,6 +502,59 @@ function createSeedreamConfig() {
   }
 
   applyPreviewAspect();
+
+  seedreamRefineButton?.addEventListener("click", async () => {
+    const prompt = promptField.value.trim();
+    if (!prompt) {
+      showToast("Provide a prompt before refining.", "error");
+      promptField.focus();
+      return;
+    }
+
+    const originalText = seedreamRefineButton.textContent;
+    seedreamRefineButton.disabled = true;
+    seedreamRefineButton.textContent = "Refining…";
+
+    try {
+      const response = await fetch("/api/refine", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ prompt }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        const message =
+          result?.error ||
+          result?.details?.error ||
+          "Unable to refine prompt right now.";
+        throw new Error(message);
+      }
+
+      const refinedPrompt = typeof result?.refined_prompt === "string"
+        ? result.refined_prompt.trim()
+        : "";
+
+      if (refinedPrompt) {
+        promptField.value = refinedPrompt;
+        showToast("Prompt refined.", "success");
+      } else {
+        showToast("Refine service returned no changes.", "error");
+      }
+    } catch (error) {
+      console.error("Prompt refinement failed", error);
+      showToast(
+        error instanceof Error ? error.message : "Failed to refine prompt.",
+        "error",
+      );
+    } finally {
+      seedreamRefineButton.disabled = false;
+      seedreamRefineButton.textContent = originalText;
+    }
+  });
 
   return {
     key: "seedream",

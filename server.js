@@ -16,6 +16,7 @@ const terminalStatuses = new Set(["succeeded", "failed", "canceled"]);
 const pollIntervalMs = Number(process.env.REPLICATE_POLL_INTERVAL_MS || 2000);
 const waitTimeoutMs = Number(process.env.REPLICATE_TIMEOUT_MS || 120000);
 const DEFAULT_MODEL_KEY = (process.env.REPLICATE_DEFAULT_MODEL_KEY || "seedream").toLowerCase();
+const REFINE_MODEL_VERSION = process.env.REPLICATE_REFINE_MODEL_VERSION;
 
 const MODEL_CONFIG = {
   seedream: {
@@ -32,6 +33,115 @@ const DIMENSION_LIMITS = { min: 1024, max: 4096 };
 const MAX_IMAGES_LIMITS = { min: 1, max: 15 };
 
 const clampNumber = (value, min, max) => Math.min(max, Math.max(min, value));
+
+const normalizeText = (value) =>
+  typeof value === "string" ? value.trim() : "";
+
+const extractTextOutput = (prediction) => {
+  if (!prediction) return "";
+
+  const candidates = [];
+
+  if (typeof prediction.output === "string") {
+    candidates.push(prediction.output);
+  }
+
+  if (Array.isArray(prediction.output)) {
+    for (const item of prediction.output) {
+      if (typeof item === "string") {
+        candidates.push(item);
+      } else if (item && typeof item === "object") {
+        if (typeof item.text === "string") {
+          candidates.push(item.text);
+        }
+        if (typeof item.message === "string") {
+          candidates.push(item.message);
+        }
+        if (Array.isArray(item.content)) {
+          for (const piece of item.content) {
+            if (typeof piece === "string") {
+              candidates.push(piece);
+            } else if (piece && typeof piece === "object" && typeof piece.text === "string") {
+              candidates.push(piece.text);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (typeof prediction.output_text === "string") {
+    candidates.push(prediction.output_text);
+  }
+
+  if (typeof prediction.logs === "string") {
+    candidates.push(prediction.logs.split("\n").slice(-5).join(" "));
+  }
+
+  for (const candidate of candidates) {
+    const text = normalizeText(candidate);
+    if (text) return text;
+  }
+
+  return "";
+};
+
+const createAndPollPrediction = async ({ token, body }) => {
+  const createResponse = await fetch("https://api.replicate.com/v1/predictions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Token ${token}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  const initialPrediction = await createResponse.json();
+
+  if (!createResponse.ok) {
+    const error = new Error(initialPrediction?.error || "Failed to create prediction.");
+    error.status = createResponse.status;
+    error.details = initialPrediction;
+    throw error;
+  }
+
+  let prediction = initialPrediction;
+  const startedAt = Date.now();
+
+  while (!terminalStatuses.has(prediction.status)) {
+    if (Date.now() - startedAt > waitTimeoutMs) {
+      const error = new Error("Timed out while waiting for Replicate prediction to finish.");
+      error.status = 504;
+      error.details = prediction;
+      throw error;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+
+    const pollResponse = await fetch(
+      `https://api.replicate.com/v1/predictions/${prediction.id}`,
+      {
+        headers: {
+          Authorization: `Token ${token}`,
+        },
+      },
+    );
+
+    prediction = await pollResponse.json();
+
+    if (!pollResponse.ok) {
+      const error = new Error(
+        prediction?.error || "Failed while polling prediction status.",
+      );
+      error.status = pollResponse.status;
+      error.details = prediction;
+      throw error;
+    }
+  }
+
+  const elapsedSeconds = Number(((Date.now() - startedAt) / 1000).toFixed(2));
+  return { prediction, elapsedSeconds };
+};
 
 app.use(express.json({ limit: "20mb" }));
 app.use(express.static(path.join(__dirname, "public")));
@@ -150,64 +260,98 @@ app.post("/api/predictions", async (req, res) => {
       input: inputPayload,
     };
 
-    const createResponse = await fetch("https://api.replicate.com/v1/predictions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Token ${token}`,
-      },
-      body: JSON.stringify(replicateBody),
+    const { prediction, elapsedSeconds } = await createAndPollPrediction({
+      token,
+      body: replicateBody,
     });
-
-    const initialPrediction = await createResponse.json();
-
-    if (!createResponse.ok) {
-      return res.status(createResponse.status).json({
-        error: initialPrediction?.error || "Failed to create prediction.",
-        details: initialPrediction,
-      });
-    }
-
-    let prediction = initialPrediction;
-    const startedAt = Date.now();
-
-    while (!terminalStatuses.has(prediction.status)) {
-      if (Date.now() - startedAt > waitTimeoutMs) {
-        return res.status(504).json({
-          error: "Timed out while waiting for Replicate prediction to finish.",
-          details: prediction,
-        });
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
-
-      const pollResponse = await fetch(
-        `https://api.replicate.com/v1/predictions/${prediction.id}`,
-        {
-          headers: {
-            Authorization: `Token ${token}`,
-          },
-        },
-      );
-
-      prediction = await pollResponse.json();
-
-      if (!pollResponse.ok) {
-        return res.status(pollResponse.status).json({
-          error: prediction?.error || "Failed while polling prediction status.",
-          details: prediction,
-        });
-      }
-    }
-
-    const elapsedSeconds = Number(((Date.now() - startedAt) / 1000).toFixed(2));
 
     return res.json({
       elapsed_seconds: elapsedSeconds,
       prediction,
     });
   } catch (error) {
+    if (error && typeof error === "object" && "status" in error) {
+      return res.status(error.status || 500).json({
+        error: error.message || "Replicate request failed.",
+        details: error.details,
+      });
+    }
     console.error("[/api/predictions] unexpected error:", error);
+    return res.status(500).json({
+      error: "Unexpected server error.",
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+app.post("/api/refine", async (req, res) => {
+  try {
+    const token = process.env.REPLICATE_API_TOKEN;
+    if (!token) {
+      return res
+        .status(500)
+        .json({ error: "Missing REPLICATE_API_TOKEN in environment." });
+    }
+
+    if (!REFINE_MODEL_VERSION) {
+      return res.status(500).json({
+        error:
+          "Missing REPLICATE_REFINE_MODEL_VERSION in environment. Set it to the latest version id for openai/gpt-5-mini.",
+      });
+    }
+
+    const promptValue = typeof req.body?.prompt === "string" ? req.body.prompt : "";
+    const trimmedPrompt = promptValue.trim();
+
+    if (!trimmedPrompt) {
+      return res.status(400).json({ error: 'Field "prompt" is required.' });
+    }
+
+    const refineBody = {
+      version: REFINE_MODEL_VERSION,
+      input: {
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are an expert prompt engineer for text-to-image diffusion models. Refine prompts for clarity, vivid detail, and photo-realism while preserving the original intent. Respond with the improved prompt only.",
+          },
+          {
+            role: "user",
+            content: trimmedPrompt,
+          },
+        ],
+        max_output_tokens: 400,
+        temperature: 0.3,
+        top_p: 0.9,
+        prompt: `Refine the following image-generation prompt while keeping its core intent intact. Respond with the improved prompt only.\n\n${trimmedPrompt}`,
+      },
+    };
+
+    const { prediction, elapsedSeconds } = await createAndPollPrediction({
+      token,
+      body: refineBody,
+    });
+
+    let refinedPrompt = extractTextOutput(prediction);
+    if (!refinedPrompt) {
+      refinedPrompt = trimmedPrompt;
+    }
+
+    return res.json({
+      refined_prompt: refinedPrompt,
+      elapsed_seconds: elapsedSeconds,
+      prediction,
+    });
+  } catch (error) {
+    if (error && typeof error === "object" && "status" in error) {
+      return res.status(error.status || 500).json({
+        error: error.message || "Replicate request failed.",
+        details: error.details,
+      });
+    }
+
+    console.error("[/api/refine] unexpected error:", error);
     return res.status(500).json({
       error: "Unexpected server error.",
       details: error instanceof Error ? error.message : String(error),

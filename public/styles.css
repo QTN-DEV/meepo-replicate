@@ -157,6 +157,37 @@ body {
   gap: 12px;
 }
 
+.field__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.field__action-button {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f1f4fb;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background 0.2s, border 0.2s, transform 0.1s;
+}
+
+.field__action-button:hover {
+  border-color: rgba(136, 99, 255, 0.6);
+  background: rgba(98, 79, 255, 0.25);
+}
+
+.field__action-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .field__label {
   font-size: 14px;
   color: #d7dbe2;

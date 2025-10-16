@@ -33,9 +33,14 @@
         <div class="form-wrapper">
           <form id="seedream-form" class="form form--active" data-model="seedream">
             <label class="field">
-              <span class="field__label">
-                T prompt <span class="required">*</span> <span class="type-hint">string</span>
-              </span>
+              <div class="field__header">
+                <span class="field__label">
+                  T prompt <span class="required">*</span> <span class="type-hint">string</span>
+                </span>
+                <button type="button" class="field__action-button" id="seedream-refine-button">
+                  Refine
+                </button>
+              </div>
               <textarea
                 id="seedream-prompt"
                 name="prompt"
