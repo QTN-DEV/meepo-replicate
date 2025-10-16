@@ -76,7 +76,26 @@ const extractTextOutput = (prediction) => {
   }
 
   if (typeof prediction.logs === "string") {
-    candidates.push(prediction.logs.split("\n").slice(-5).join(" "));
+    const logSections = prediction.logs
+      .split(/\n\s*\n/)
+      .map((section) => section.trim())
+      .filter(Boolean);
+    for (const section of logSections) {
+      const cleanedSection = section.replace(/^output:\s*/i, "").trim();
+      const hashedMatch = cleanedSection.match(/hash=[a-f0-9]+\s+output="([^"]+)"/i);
+      if (hashedMatch?.[1]) {
+        candidates.push(hashedMatch[1]);
+        continue;
+      }
+      if (cleanedSection) {
+        candidates.push(cleanedSection);
+      }
+    }
+  }
+
+  const combined = normalizeText(candidates.join("\n\n"));
+  if (combined) {
+    return combined;
   }
 
   for (const candidate of candidates) {
@@ -298,7 +317,7 @@ app.post("/api/refine", async (req, res) => {
       max_output_tokens: 400,
       temperature: 0.3,
       top_p: 0.9,
-      prompt: `Refine the following image-generation prompt while keeping its core intent intact. Respond with the improved prompt only.\n\n${trimmedPrompt}`,
+      prompt: `Refine and expand the following image generation prompt to make it more descriptive, specific, and visually compelling. Respond with the improved prompt only.\n\n${trimmedPrompt}`,
     };
 
     const startedAt = Date.now();
