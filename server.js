@@ -26,7 +26,7 @@ const MODEL_CONFIG = {
   },
   "nano-banana": {
     envKey: "REPLICATE_NANO_BANANA_VERSION",
-    version: process.env.REPLICATE_NANO_BANANA_VERSION,
+    version: "google/nano-banana-pro",
   },
 };
 
@@ -177,16 +177,9 @@ app.post("/api/predictions", async (req, res) => {
       });
     }
 
-    if (!config.version) {
-      const envHint =
-        modelKey === "seedream"
-          ? "REPLICATE_SEEDREAM_VERSION (or legacy REPLICATE_MODEL_VERSION)"
-          : config.envKey || "model version environment variable";
-
-      return res.status(500).json({
-        error: `Missing ${envHint} for model "${modelKey}".`,
-      });
-    }
+    // For google/nano-banana-pro, we don't strictly need a version ID if we use the model owner/name format
+    // but the existing code checks for config.version.
+    // The config above sets version to "google/nano-banana-pro".
 
     const promptValue = typeof body.prompt === "string" ? body.prompt : "";
     const trimmedPrompt = promptValue.trim();
@@ -252,13 +245,17 @@ app.post("/api/predictions", async (req, res) => {
         inputPayload.image_input = imageInput;
       }
     } else {
-      const aspectRatio = typeof body.aspect_ratio === "string" ? body.aspect_ratio : "16:9";
-      const outputFormat = typeof body.output_format === "string" ? body.output_format : "jpg";
+      const aspectRatio = typeof body.aspect_ratio === "string" ? body.aspect_ratio : "4:3";
+      const resolution = typeof body.resolution === "string" ? body.resolution : "2K";
+      const outputFormat = typeof body.output_format === "string" ? body.output_format : "png";
+      const safetyFilterLevel = typeof body.safety_filter_level === "string" ? body.safety_filter_level : "block_only_high";
 
       inputPayload = {
         prompt: trimmedPrompt,
         aspect_ratio: aspectRatio,
+        resolution: resolution,
         output_format: outputFormat,
+        safety_filter_level: safetyFilterLevel,
       };
 
       if (imageInput.length > 0) {
@@ -320,27 +317,17 @@ app.post("/api/refine", async (req, res) => {
     }
 
     const refineInput = {
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an expert prompt engineer for text-to-image diffusion models. Refine prompts for clarity, vivid detail, and photo-realism while preserving the original intent. Respond with the improved prompt only.",
-        },
-        {
-          role: "user",
-          content: trimmedPrompt,
-        },
-      ],
-      max_output_tokens: 400,
-      temperature: 0.3,
-      top_p: 0.9,
-      prompt: `Refine and expand the following image generation prompt to make it more descriptive, specific, and visually compelling. Respond with the improved prompt only.\n\n${trimmedPrompt}`,
+      prompt: trimmedPrompt,
+      system_instruction: "You are an expert prompt engineer for text-to-image diffusion models. Refine prompts for clarity, vivid detail, and photo-realism while preserving the original intent. Respond with the improved prompt only.",
+      max_output_tokens: 65535,
+      thinking: "low",
     };
 
     const startedAt = Date.now();
     const chunks = [];
 
-    for await (const event of replicate.stream(REFINE_MODEL_VERSION, {
+    // Using google/gemini-3-pro
+    for await (const event of replicate.stream("google/gemini-3-pro", {
       input: refineInput,
     })) {
       if (typeof event === "string") {

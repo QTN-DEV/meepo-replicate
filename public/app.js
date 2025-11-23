@@ -1,21 +1,14 @@
+
 const outputPreview = document.getElementById("output-preview");
 const outputJson = document.getElementById("output-json");
 const generatedTime = document.getElementById("generated-time");
-const downloadButton = document.getElementById("download-button");
 const toast = document.getElementById("toast");
-const reportButton = document.getElementById("report-button");
-const viewLogsButton = document.getElementById("view-logs-button");
-const tweakButton = document.getElementById("tweak-button");
-const iterateButton = document.getElementById("iterate-button");
-const shareButton = document.getElementById("share-button");
-const viewPredictionButton = document.getElementById("view-prediction-button");
-const deleteButton = document.getElementById("delete-button");
 const seedreamRefineButton = document.getElementById("seedream-refine-button");
 
 const modelButtons = document.querySelectorAll("[data-model-button]");
 const outputTabs = document.querySelectorAll("[data-output-tab]");
 
-let activeModelKey = "seedream";
+let activeModelKey = "nano-banana";
 let activeOutputTab = "preview";
 
 const defaultPreviewAspect = Object.freeze({ width: 16, height: 9 });
@@ -135,14 +128,12 @@ const applyStateToPreview = (modelKey, { fallbackAspect } = {}) => {
     imageElement.src = state.imageUrl;
     outputPreview.innerHTML = "";
     outputPreview.appendChild(imageElement);
-    downloadButton.disabled = false;
   } else {
     outputPreview.innerHTML = `
       <div class="preview-placeholder">
         <span>Generated image will appear here</span>
       </div>
     `;
-    downloadButton.disabled = true;
   }
 
   const prediction = state.prediction ?? {};
@@ -291,7 +282,7 @@ const renderFilePreviewList = (input, container) => {
 
     const metaEl = document.createElement("span");
     metaEl.className = "file-preview-meta";
-    metaEl.textContent = [file.type.split("/")[1] || file.type || "" , humanFileSize(file.size)]
+    metaEl.textContent = [file.type.split("/")[1] || file.type || "", humanFileSize(file.size)]
       .filter(Boolean)
       .join(" · ");
 
@@ -671,13 +662,17 @@ function createReviseConfig() {
   const fileInput = document.getElementById("revise-image-input");
   const previewContainer = document.getElementById("revise-image-preview");
   const aspectSelect = document.getElementById("revise-aspect-ratio");
+  const resolutionSelect = document.getElementById("revise-resolution");
   const outputFormatSelect = document.getElementById("revise-output-format");
+  const safetyFilterLevelSelect = document.getElementById("revise-safety-filter-level");
 
   const defaults = {
     prompt:
-      "A F-22 raptor fighter jet parked in front of a traditional Indonesian cottage, surrounded by lush palm trees and distant volcanoes. The lighting is golden hour, with warm sunlight reflecting off the jet's metallic surface. The camera angle is from below the jet, The scene is ultra-detailed, photorealistic, with realistic shadows, textures, and depth of field, captured in 8K cinematic quality.",
-    aspect_ratio: "16:9",
-    output_format: "jpg",
+      "How engineers see the San Francisco Bridge",
+    aspect_ratio: "4:3",
+    resolution: "2K",
+    output_format: "png",
+    safety_filter_level: "block_only_high",
   };
 
   const getPreviewAspect = () => {
@@ -698,7 +693,9 @@ function createReviseConfig() {
   function resetFields() {
     promptField.value = defaults.prompt;
     aspectSelect.value = defaults.aspect_ratio;
+    resolutionSelect.value = defaults.resolution;
     outputFormatSelect.value = defaults.output_format;
+    safetyFilterLevelSelect.value = defaults.safety_filter_level;
     fileInput.value = "";
     applyPreviewAspect();
     renderFilePreviewList(fileInput, previewContainer);
@@ -707,14 +704,18 @@ function createReviseConfig() {
   async function gatherPayload() {
     const prompt = promptField.value;
     const aspect_ratio = aspectSelect.value;
+    const resolution = resolutionSelect.value;
     const output_format = outputFormatSelect.value;
+    const safety_filter_level = safetyFilterLevelSelect.value;
     const image_input = await filesToBase64(fileInput);
 
     const payload = {
       model_key: "nano-banana",
       prompt,
       aspect_ratio,
+      resolution,
       output_format,
+      safety_filter_level,
     };
 
     if (image_input.length) {
@@ -723,9 +724,64 @@ function createReviseConfig() {
 
     return {
       payload,
-      downloadExtension: output_format || "jpg",
+      downloadExtension: output_format || "png",
     };
   }
+
+  const refineButton = document.getElementById("revise-refine-button");
+
+  refineButton?.addEventListener("click", async () => {
+    const prompt = promptField.value.trim();
+    if (!prompt) {
+      showToast("Provide a prompt before refining.", "error");
+      promptField.focus();
+      return;
+    }
+
+    const originalText = refineButton.textContent;
+    refineButton.disabled = true;
+    refineButton.textContent = "Refining…";
+
+    try {
+      const response = await fetch("/api/refine", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ prompt }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        const message =
+          result?.error ||
+          result?.details?.error ||
+          "Unable to refine prompt right now.";
+        throw new Error(message);
+      }
+
+      const refinedPrompt = typeof result?.refined_prompt === "string"
+        ? result.refined_prompt.trim()
+        : "";
+
+      if (refinedPrompt) {
+        promptField.value = refinedPrompt;
+        showToast("Prompt refined.", "success");
+      } else {
+        showToast("Refine service returned no changes.", "error");
+      }
+    } catch (error) {
+      console.error("Prompt refinement failed", error);
+      showToast(
+        error instanceof Error ? error.message : "Failed to refine prompt.",
+        "error",
+      );
+    } finally {
+      refineButton.disabled = false;
+      refineButton.textContent = originalText;
+    }
+  });
 
   applyPreviewAspect();
   renderFilePreviewList(fileInput, previewContainer);
@@ -880,27 +936,11 @@ Object.entries(modelConfigs).forEach(([modelKey, config]) => {
   config.resetButton?.addEventListener("click", () => resetModelForm(modelKey));
 });
 
-downloadButton.addEventListener("click", () => {
-  const state = modelStates[activeModelKey];
-  if (!state?.imageUrl) return;
-
-  const extension =
-    state.downloadExtension || state.defaultDownloadExtension || "png";
-  const safeExtension = extension.replace(/[^a-z0-9]/gi, "") || "png";
-  const anchor = document.createElement("a");
-  anchor.href = state.imageUrl;
-  anchor.download = `playground-output.${safeExtension}`;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-});
-
 const stubButtons = [
   [tweakButton, "Tweak feature not wired yet."],
   [iterateButton, "Iterate flow is not available in this playground."],
   [shareButton, "Share link support coming soon."],
   [reportButton, "Report flow is not available in this demo."],
-  [viewLogsButton, "Logs are shown automatically in JSON output."],
   [viewPredictionButton, "Full prediction view is not implemented in this demo."],
   [
     deleteButton,
