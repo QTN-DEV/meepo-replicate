@@ -198,6 +198,8 @@ function createRangeValueSync(input) {
   return update;
 }
 
+import imageCompression from "https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/+esm";
+
 function filesToBase64(input) {
   const files = Array.from(input?.files ?? []);
   if (!files.length) return Promise.resolve([]);
@@ -205,11 +207,30 @@ function filesToBase64(input) {
   return Promise.all(
     files.map(
       (file) =>
-        new Promise((resolve, reject) => {
+        new Promise(async (resolve, reject) => {
+          let fileToProcess = file;
+
+          // Check if file size is greater than 2MB
+          if (file.size > 2 * 1024 * 1024) {
+            try {
+              console.log(`Compressing ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)...`);
+              const options = {
+                maxSizeMB: 2,
+                maxWidthOrHeight: 1920,
+                useWebWorker: true,
+              };
+              fileToProcess = await imageCompression(file, options);
+              console.log(`Compressed to ${(fileToProcess.size / 1024 / 1024).toFixed(2)} MB`);
+            } catch (error) {
+              console.error("Compression failed:", error);
+              // Fallback to original file if compression fails
+            }
+          }
+
           const reader = new FileReader();
           reader.onload = () => resolve(reader.result);
           reader.onerror = (err) => reject(err);
-          reader.readAsDataURL(file);
+          reader.readAsDataURL(fileToProcess);
         }),
     ),
   );
