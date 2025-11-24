@@ -19,135 +19,24 @@
               fill="white" />
           </svg>
         </div>
-        <div class="model-info">
+        <div class="model-info" id="model-info-header">
           <strong>Generation Model:</strong> google/nano-banana-pro
         </div>
       </header>
 
-      <div class="cta-switch" style="display: none;">
-        <button class="cta-switch__button" data-model-button="seedream">
+      <div class="cta-switch">
+        <button class="cta-switch__button active" data-model-button="nano-banana">
           <span>Create</span>
           <small>Generate a brand new scene</small>
         </button>
-        <button class="cta-switch__button active" data-model-button="nano-banana">
-          <span>Revise</span>
-          <small>Transform an existing concept</small>
+        <button class="cta-switch__button" data-model-button="remove-bg">
+          <span>Remove BG</span>
+          <small>Remove background from image</small>
         </button>
       </div>
 
       <div class="form-wrapper">
-        <form id="seedream-form" class="form form--hidden" data-model="seedream">
-          <label class="field">
-            <div class="field__header">
-              <span class="field__label">
-                T prompt <span class="required">*</span> <span class="type-hint">string</span>
-              </span>
-              <button type="button" class="field__action-button" id="seedream-refine-button">
-                Refine
-              </button>
-            </div>
-            <textarea id="seedream-prompt" name="prompt" class="field__control field__control--textarea" rows="6"
-              required></textarea>
-            <span class="field__hint">Shift + Return to add a new line</span>
-          </label>
-
-          <label class="field">
-            <span class="field__label">
-              image_input <span class="type-hint">file[]</span>
-            </span>
-            <div class="dropzone">
-              <input id="seedream-image-input" type="file" name="image_input" multiple />
-              <span>Add multiple files</span>
-            </div>
-            <div class="file-preview-list file-preview-list--empty" id="seedream-image-preview" aria-live="polite">
-            </div>
-          </label>
-
-          <label class="field">
-            <span class="field__label">
-              size <span class="type-hint">string</span>
-            </span>
-            <select id="seedream-size" name="size" class="field__control">
-              <option value="1K">1K (1024px)</option>
-              <option value="2K" selected>2K (2048px)</option>
-              <option value="4K">4K (4096px)</option>
-              <option value="custom">custom</option>
-            </select>
-            <span class="field__hint">Image resolution. Use &quot;custom&quot; for specific dimensions.</span>
-          </label>
-
-          <label class="field">
-            <span class="field__label">
-              aspect_ratio <span class="type-hint">string</span>
-            </span>
-            <select id="seedream-aspect-ratio" name="aspect_ratio" class="field__control">
-              <option value="match_input_image">match_input_image</option>
-              <option value="1:1">1:1</option>
-              <option value="4:3">4:3</option>
-              <option value="3:2">3:2</option>
-              <option value="16:9" selected>16:9</option>
-              <option value="9:16">9:16</option>
-            </select>
-            <span class="field__hint">Aspect ratio for the generated image.</span>
-          </label>
-
-          <div class="field field--range" data-size-dependent>
-            <div class="field__label-row">
-              <span class="field__label">
-                # width <span class="type-hint">integer</span>
-              </span>
-              <span class="range-value" data-range-value="seedream-width">2048</span>
-            </div>
-            <input id="seedream-width" type="range" name="width" min="1024" max="4096" step="64" value="2048" />
-            <span class="field__hint">(minimum: 1024, maximum: 4096)</span>
-          </div>
-
-          <div class="field field--range" data-size-dependent>
-            <div class="field__label-row">
-              <span class="field__label">
-                # height <span class="type-hint">integer</span>
-              </span>
-              <span class="range-value" data-range-value="seedream-height">2048</span>
-            </div>
-            <input id="seedream-height" type="range" name="height" min="1024" max="4096" step="64" value="2048" />
-            <span class="field__hint">(minimum: 1024, maximum: 4096)</span>
-          </div>
-
-          <label class="field">
-            <span class="field__label">
-              sequential_image_generation <span class="type-hint">string</span>
-            </span>
-            <select id="seedream-sequential" name="sequential_image_generation" class="field__control">
-              <option value="disabled" selected>disabled</option>
-              <option value="auto">auto</option>
-            </select>
-            <span class="field__hint">
-              Control story-style sequences. &quot;disabled&quot; produces a single image.
-            </span>
-          </label>
-
-          <div class="field field--range">
-            <div class="field__label-row">
-              <span class="field__label">
-                # max_images <span class="type-hint">integer</span>
-              </span>
-              <span class="range-value" data-range-value="seedream-max-images">1</span>
-            </div>
-            <input id="seedream-max-images" type="range" name="max_images" min="1" max="15" step="1" value="1" />
-            <span class="field__hint">Total images (input + generated) cannot exceed 15.</span>
-          </div>
-
-          <div class="form__actions">
-            <button type="button" class="ghost-button" data-role="reset">
-              Reset to default inputs
-            </button>
-            <button type="submit" class="primary-button" data-role="run">
-              Run <span class="keyboard-hint">(cmd+enter)</span>
-            </button>
-          </div>
-        </form>
-
-        <form id="revise-form" class="form form--active" data-model="nano-banana">
+        <form id="nano-banana-form" class="form form--active" data-model="nano-banana">
           <label class="field">
             <div class="field__header">
               <span class="field__label">
@@ -155,12 +44,12 @@
               </span>
               <div class="field__actions">
                 <span class="model-badge" title="Refine Model">google/gemini-3-pro</span>
-                <button type="button" class="field__action-button" id="revise-refine-button">
+                <button type="button" class="field__action-button" id="nano-banana-refine-button">
                   Refine
                 </button>
               </div>
             </div>
-            <textarea id="revise-prompt" name="prompt" class="field__control field__control--textarea" rows="6"
+            <textarea id="nano-banana-prompt" name="prompt" class="field__control field__control--textarea" rows="6"
               required></textarea>
             <span class="field__hint">Shift + Return to add a new line</span>
           </label>
@@ -170,22 +59,29 @@
               image_input <span class="type-hint">file[]</span>
             </span>
             <div class="dropzone">
-              <input id="revise-image-input" type="file" name="image_input" multiple />
+              <input id="nano-banana-image-input" type="file" name="image_input" multiple />
               <span>Add multiple files</span>
             </div>
-            <div class="file-preview-list file-preview-list--empty" id="revise-image-preview" aria-live="polite"></div>
+            <div class="file-preview-list file-preview-list--empty" id="nano-banana-image-preview" aria-live="polite">
+            </div>
           </label>
 
           <label class="field">
             <span class="field__label">
               aspect_ratio <span class="type-hint">string</span>
             </span>
-            <select id="revise-aspect-ratio" name="aspect_ratio" class="field__control">
-              <option value="4:3" selected>4:3</option>
-              <option value="3:4">3:4</option>
+            <select id="nano-banana-aspect-ratio" name="aspect_ratio" class="field__control">
+              <option value="match_input_image">match_input_image</option>
               <option value="1:1">1:1</option>
-              <option value="16:9">16:9</option>
+              <option value="2:3">2:3</option>
+              <option value="3:2">3:2</option>
+              <option value="3:4">3:4</option>
+              <option value="4:3" selected>4:3</option>
+              <option value="4:5">4:5</option>
+              <option value="5:4">5:4</option>
               <option value="9:16">9:16</option>
+              <option value="16:9">16:9</option>
+              <option value="21:9">21:9</option>
             </select>
             <span class="field__hint">Aspect ratio of the generated image</span>
           </label>
@@ -194,7 +90,7 @@
             <span class="field__label">
               resolution <span class="type-hint">string</span>
             </span>
-            <select id="revise-resolution" name="resolution" class="field__control">
+            <select id="nano-banana-resolution" name="resolution" class="field__control">
               <option value="2K" selected>2K</option>
               <option value="4K">4K</option>
             </select>
@@ -205,7 +101,7 @@
             <span class="field__label">
               output_format <span class="type-hint">string</span>
             </span>
-            <select id="revise-output-format" name="output_format" class="field__control">
+            <select id="nano-banana-output-format" name="output_format" class="field__control">
               <option value="png" selected>png</option>
               <option value="jpg">jpg</option>
               <option value="webp">webp</option>
@@ -217,13 +113,57 @@
             <span class="field__label">
               safety_filter_level <span class="type-hint">string</span>
             </span>
-            <select id="revise-safety-filter-level" name="safety_filter_level" class="field__control">
+            <select id="nano-banana-safety-filter-level" name="safety_filter_level" class="field__control">
               <option value="block_only_high" selected>block_only_high</option>
               <option value="block_medium_and_above">block_medium_and_above</option>
               <option value="block_low_and_above">block_low_and_above</option>
             </select>
             <span class="field__hint">block_low_and_above is strictest, block_medium_and_above blocks some prompts,
               block_only_high is most permissive but some prompts will still be blocked</span>
+          </label>
+
+          <div class="form__actions">
+            <button type="button" class="ghost-button" data-role="reset">
+              Reset to default inputs
+            </button>
+            <button type="submit" class="primary-button" data-role="run">
+              Run <span class="keyboard-hint">(cmd+enter)</span>
+            </button>
+          </div>
+        </form>
+
+        <form id="remove-bg-form" class="form form--hidden" data-model="remove-bg">
+          <label class="field">
+            <span class="field__label">
+              image <span class="required">*</span> <span class="type-hint">file</span>
+            </span>
+            <div class="dropzone">
+              <input id="remove-bg-image-input" type="file" name="image" accept="image/*" />
+              <span>Upload an image</span>
+            </div>
+            <div class="file-preview-list file-preview-list--empty" id="remove-bg-image-preview" aria-live="polite">
+            </div>
+          </label>
+
+          <label class="field">
+            <span class="field__label">
+              T image_url <span class="type-hint">string</span>
+            </span>
+            <input id="remove-bg-image-url" type="text" name="image_url" class="field__control"
+              placeholder="https://..." />
+            <span class="field__hint">Or provide a URL to an image</span>
+          </label>
+
+          <label class="field field--checkbox">
+            <input id="remove-bg-content-moderation" type="checkbox" name="content_moderation" />
+            <span class="field__label">content_moderation <span class="type-hint">boolean</span></span>
+            <span class="field__hint">Enable content moderation</span>
+          </label>
+
+          <label class="field field--checkbox">
+            <input id="remove-bg-preserve-partial-alpha" type="checkbox" name="preserve_partial_alpha" checked />
+            <span class="field__label">preserve_partial_alpha <span class="type-hint">boolean</span></span>
+            <span class="field__hint">Preserve partially transparent pixels</span>
           </label>
 
           <div class="form__actions">

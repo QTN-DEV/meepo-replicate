@@ -28,6 +28,10 @@ const MODEL_CONFIG = {
     envKey: "REPLICATE_NANO_BANANA_VERSION",
     version: "google/nano-banana-pro",
   },
+  "remove-bg": {
+    envKey: "REPLICATE_REMOVE_BG_VERSION",
+    version: "briaai/bria-rmbg-2.0",
+  },
 };
 
 const DIMENSION_LIMITS = { min: 1024, max: 4096 };
@@ -244,6 +248,16 @@ app.post("/api/predictions", async (req, res) => {
       if (imageInput.length > 0) {
         inputPayload.image_input = imageInput;
       }
+    } else if (modelKey === "remove-bg") {
+      const imageInput = body.image ? body.image : body.image_url;
+      const contentModeration = body.content_moderation === true;
+      const preservePartialAlpha = body.preserve_partial_alpha === true;
+
+      inputPayload = {
+        image: imageInput,
+        content_moderation: contentModeration,
+        preserve_partial_alpha: preservePartialAlpha,
+      };
     } else {
       const aspectRatio = typeof body.aspect_ratio === "string" ? body.aspect_ratio : "4:3";
       const resolution = typeof body.resolution === "string" ? body.resolution : "2K";

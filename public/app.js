@@ -26,8 +26,8 @@ const createInitialState = (downloadExtension = "png") => ({
 });
 
 const modelStates = {
-  seedream: createInitialState("png"),
-  "nano-banana": createInitialState("jpg"),
+  "nano-banana": createInitialState("png"),
+  "remove-bg": createInitialState("png"),
 };
 
 const normalizePositiveNumber = (value) => {
@@ -424,55 +424,28 @@ function toggleRunning(isRunning, config) {
   }
 }
 
-function createSeedreamConfig() {
-  const form = document.getElementById("seedream-form");
-  const promptField = document.getElementById("seedream-prompt");
-  const fileInput = document.getElementById("seedream-image-input");
-  const previewContainer = document.getElementById("seedream-image-preview");
-  const sizeSelect = document.getElementById("seedream-size");
-  const aspectSelect = document.getElementById("seedream-aspect-ratio");
-  const widthRange = document.getElementById("seedream-width");
-  const heightRange = document.getElementById("seedream-height");
-  const sequentialSelect = document.getElementById("seedream-sequential");
-  const maxImagesRange = document.getElementById("seedream-max-images");
-
-  let matchInputAspect = null;
+function createNanoBananaConfig() {
+  const form = document.getElementById("nano-banana-form");
+  const promptField = document.getElementById("nano-banana-prompt");
+  const fileInput = document.getElementById("nano-banana-image-input");
+  const previewContainer = document.getElementById("nano-banana-image-preview");
+  const aspectSelect = document.getElementById("nano-banana-aspect-ratio");
+  const resolutionSelect = document.getElementById("nano-banana-resolution");
+  const outputFormatSelect = document.getElementById("nano-banana-output-format");
+  const safetyFilterLevelSelect = document.getElementById("nano-banana-safety-filter-level");
 
   const defaults = {
     prompt:
-      "a photo of a store front called 'Seedream 4', it sells books, a poster in the window says 'Seedream 4 now on Replicate'",
-    size: "2K",
-    aspect_ratio: "16:9",
-    width: 2048,
-    height: 2048,
-    sequential_image_generation: "disabled",
-    max_images: 1,
+      "How engineers see the San Francisco Bridge",
+    aspect_ratio: "4:3",
+    resolution: "2K",
+    output_format: "png",
+    safety_filter_level: "block_only_high",
   };
 
-  const updateWidthLabel = createRangeValueSync(widthRange);
-  const updateHeightLabel = createRangeValueSync(heightRange);
-  const updateMaxImagesLabel = createRangeValueSync(maxImagesRange);
-
-  const dependentFields = form.querySelectorAll("[data-size-dependent]");
-
-  function setSizeDependentState() {
-    const isCustom = sizeSelect.value === "custom";
-    dependentFields.forEach((field) => {
-      field.classList.toggle("is-disabled", !isCustom);
-      const rangeInput = field.querySelector('input[type="range"]');
-      if (rangeInput) {
-        rangeInput.disabled = !isCustom;
-      }
-    });
-  }
+  let matchInputAspect = null;
 
   const getPreviewAspect = () => {
-    if (sizeSelect.value === "custom") {
-      const width = normalizePositiveNumber(widthRange.value) ?? defaults.width;
-      const height = normalizePositiveNumber(heightRange.value) ?? defaults.height;
-      return { width, height };
-    }
-
     const aspectValue = aspectSelect.value;
     const parsed = parseAspectRatioValue(aspectValue);
     if (parsed) return parsed;
@@ -484,12 +457,12 @@ function createSeedreamConfig() {
     return { ...defaultPreviewAspect };
   };
 
-  expectedAspectResolvers.seedream = () => getPreviewAspect();
+  expectedAspectResolvers["nano-banana"] = () => getPreviewAspect();
 
   const applyPreviewAspect = () => {
-    if (activeModelKey !== "seedream") return;
-    if (modelStates.seedream.imageUrl) return;
-    applyStateToPreview("seedream", { fallbackAspect: getPreviewAspect() });
+    if (activeModelKey !== "nano-banana") return;
+    if (modelStates["nano-banana"].imageUrl) return;
+    applyStateToPreview("nano-banana", { fallbackAspect: getPreviewAspect() });
   };
 
   const updateMatchInputAspectFromFile = () => {
@@ -521,11 +494,6 @@ function createSeedreamConfig() {
     image.src = objectUrl;
   };
 
-  sizeSelect.addEventListener("change", setSizeDependentState);
-  sizeSelect.addEventListener("change", () => {
-    applyPreviewAspect();
-  });
-
   aspectSelect.addEventListener("change", () => {
     if (aspectSelect.value === "match_input_image") {
       updateMatchInputAspectFromFile();
@@ -535,180 +503,7 @@ function createSeedreamConfig() {
     }
   });
 
-  widthRange.addEventListener("input", () => {
-    if (sizeSelect.value === "custom") {
-      applyPreviewAspect();
-    }
-  });
-
-  heightRange.addEventListener("input", () => {
-    if (sizeSelect.value === "custom") {
-      applyPreviewAspect();
-    }
-  });
-
   fileInput.addEventListener("change", updateMatchInputAspectFromFile);
-  fileInput.addEventListener("change", () => renderFilePreviewList(fileInput, previewContainer));
-
-  setSizeDependentState();
-
-  function resetFields() {
-    promptField.value = defaults.prompt;
-    sizeSelect.value = defaults.size;
-    aspectSelect.value = defaults.aspect_ratio;
-    widthRange.value = defaults.width;
-    heightRange.value = defaults.height;
-    sequentialSelect.value = defaults.sequential_image_generation;
-    maxImagesRange.value = defaults.max_images;
-    updateWidthLabel();
-    updateHeightLabel();
-    updateMaxImagesLabel();
-    setSizeDependentState();
-    fileInput.value = "";
-    matchInputAspect = null;
-    applyPreviewAspect();
-    renderFilePreviewList(fileInput, previewContainer);
-  }
-
-  async function gatherPayload() {
-    const prompt = promptField.value;
-    const size = sizeSelect.value;
-    const aspect_ratio = aspectSelect.value;
-    const width = parseInt(widthRange.value, 10);
-    const height = parseInt(heightRange.value, 10);
-    const sequential_image_generation = sequentialSelect.value;
-    const max_images = parseInt(maxImagesRange.value, 10);
-    const image_input = await filesToBase64(fileInput);
-
-    const payload = {
-      model_key: "seedream",
-      prompt,
-      size,
-      aspect_ratio,
-      sequential_image_generation,
-      max_images,
-    };
-
-    if (size === "custom") {
-      payload.width = width;
-      payload.height = height;
-    }
-
-    if (image_input.length) {
-      payload.image_input = image_input;
-    }
-
-    return {
-      payload,
-      downloadExtension: "png",
-    };
-  }
-
-  applyPreviewAspect();
-  renderFilePreviewList(fileInput, previewContainer);
-
-  seedreamRefineButton?.addEventListener("click", async () => {
-    const prompt = promptField.value.trim();
-    if (!prompt) {
-      showToast("Provide a prompt before refining.", "error");
-      promptField.focus();
-      return;
-    }
-
-    const originalText = seedreamRefineButton.textContent;
-    seedreamRefineButton.disabled = true;
-    seedreamRefineButton.textContent = "Refining…";
-
-    try {
-      const response = await fetch("/api/refine", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ prompt }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        const message =
-          result?.error ||
-          result?.details?.error ||
-          "Unable to refine prompt right now.";
-        throw new Error(message);
-      }
-
-      const refinedPrompt = typeof result?.refined_prompt === "string"
-        ? result.refined_prompt.trim()
-        : "";
-
-      if (refinedPrompt) {
-        promptField.value = refinedPrompt;
-        showToast("Prompt refined.", "success");
-      } else {
-        showToast("Refine service returned no changes.", "error");
-      }
-    } catch (error) {
-      console.error("Prompt refinement failed", error);
-      showToast(
-        error instanceof Error ? error.message : "Failed to refine prompt.",
-        "error",
-      );
-    } finally {
-      seedreamRefineButton.disabled = false;
-      seedreamRefineButton.textContent = originalText;
-    }
-  });
-
-  return {
-    key: "seedream",
-    form,
-    promptField,
-    fileInput,
-    runButton: form.querySelector('[data-role="run"]'),
-    resetButton: form.querySelector('[data-role="reset"]'),
-    reset: resetFields,
-    gatherPayload,
-    getPreviewAspect,
-    onActivate: () => {
-      setSizeDependentState();
-      applyPreviewAspect();
-    },
-  };
-}
-
-function createReviseConfig() {
-  const form = document.getElementById("revise-form");
-  const promptField = document.getElementById("revise-prompt");
-  const fileInput = document.getElementById("revise-image-input");
-  const previewContainer = document.getElementById("revise-image-preview");
-  const aspectSelect = document.getElementById("revise-aspect-ratio");
-  const resolutionSelect = document.getElementById("revise-resolution");
-  const outputFormatSelect = document.getElementById("revise-output-format");
-  const safetyFilterLevelSelect = document.getElementById("revise-safety-filter-level");
-
-  const defaults = {
-    prompt:
-      "How engineers see the San Francisco Bridge",
-    aspect_ratio: "4:3",
-    resolution: "2K",
-    output_format: "png",
-    safety_filter_level: "block_only_high",
-  };
-
-  const getPreviewAspect = () => {
-    return parseAspectRatioValue(aspectSelect.value) || { ...defaultPreviewAspect };
-  };
-
-  expectedAspectResolvers["nano-banana"] = () => getPreviewAspect();
-
-  const applyPreviewAspect = () => {
-    if (activeModelKey !== "nano-banana") return;
-    if (modelStates["nano-banana"].imageUrl) return;
-    applyStateToPreview("nano-banana", { fallbackAspect: getPreviewAspect() });
-  };
-
-  aspectSelect.addEventListener("change", applyPreviewAspect);
   fileInput.addEventListener("change", () => renderFilePreviewList(fileInput, previewContainer));
 
   function resetFields() {
@@ -718,6 +513,7 @@ function createReviseConfig() {
     outputFormatSelect.value = defaults.output_format;
     safetyFilterLevelSelect.value = defaults.safety_filter_level;
     fileInput.value = "";
+    matchInputAspect = null;
     applyPreviewAspect();
     renderFilePreviewList(fileInput, previewContainer);
   }
@@ -749,7 +545,7 @@ function createReviseConfig() {
     };
   }
 
-  const refineButton = document.getElementById("revise-refine-button");
+  const refineButton = document.getElementById("nano-banana-refine-button");
 
   refineButton?.addEventListener("click", async () => {
     const prompt = promptField.value.trim();
@@ -820,9 +616,85 @@ function createReviseConfig() {
   };
 }
 
+function createRemoveBgConfig() {
+  const form = document.getElementById("remove-bg-form");
+  const fileInput = document.getElementById("remove-bg-image-input");
+  const previewContainer = document.getElementById("remove-bg-image-preview");
+  const imageUrlInput = document.getElementById("remove-bg-image-url");
+  const contentModerationCheckbox = document.getElementById("remove-bg-content-moderation");
+  const preservePartialAlphaCheckbox = document.getElementById("remove-bg-preserve-partial-alpha");
+
+  const defaults = {
+    image_url: "",
+    content_moderation: false,
+    preserve_partial_alpha: true,
+  };
+
+  const getPreviewAspect = () => {
+    return { ...defaultPreviewAspect };
+  };
+
+  expectedAspectResolvers["remove-bg"] = () => getPreviewAspect();
+
+  const applyPreviewAspect = () => {
+    if (activeModelKey !== "remove-bg") return;
+    if (modelStates["remove-bg"].imageUrl) return;
+    applyStateToPreview("remove-bg", { fallbackAspect: getPreviewAspect() });
+  };
+
+  fileInput.addEventListener("change", () => renderFilePreviewList(fileInput, previewContainer));
+
+  function resetFields() {
+    fileInput.value = "";
+    imageUrlInput.value = defaults.image_url;
+    contentModerationCheckbox.checked = defaults.content_moderation;
+    preservePartialAlphaCheckbox.checked = defaults.preserve_partial_alpha;
+    applyPreviewAspect();
+    renderFilePreviewList(fileInput, previewContainer);
+  }
+
+  async function gatherPayload() {
+    const image_url = imageUrlInput.value.trim();
+    const content_moderation = contentModerationCheckbox.checked;
+    const preserve_partial_alpha = preservePartialAlphaCheckbox.checked;
+    const image_input = await filesToBase64(fileInput);
+
+    const payload = {
+      model_key: "remove-bg",
+      content_moderation,
+      preserve_partial_alpha,
+    };
+
+    if (image_input.length) {
+      payload.image = image_input[0];
+    } else if (image_url) {
+      payload.image_url = image_url;
+    }
+
+    return {
+      payload,
+      downloadExtension: "png",
+    };
+  }
+
+  applyPreviewAspect();
+  renderFilePreviewList(fileInput, previewContainer);
+
+  return {
+    key: "remove-bg",
+    form,
+    fileInput,
+    runButton: form.querySelector('[data-role="run"]'),
+    resetButton: form.querySelector('[data-role="reset"]'),
+    reset: resetFields,
+    gatherPayload,
+    getPreviewAspect,
+  };
+}
+
 const modelConfigs = {
-  seedream: createSeedreamConfig(),
-  "nano-banana": createReviseConfig(),
+  "nano-banana": createNanoBananaConfig(),
+  "remove-bg": createRemoveBgConfig(),
 };
 
 const refreshPreviewAspectForModel = (modelKey) => {
@@ -847,6 +719,12 @@ function setActiveModel(modelKey) {
   });
 
   refreshPreviewAspectForModel(modelKey);
+
+  const modelInfoHeader = document.getElementById("model-info-header");
+  if (modelInfoHeader) {
+    const modelName = modelKey === "nano-banana" ? "google/nano-banana-pro" : "briaai/bria-rmbg-2.0";
+    modelInfoHeader.innerHTML = `<strong>Generation Model:</strong> ${modelName}`;
+  }
 }
 
 async function handleSubmit(event, modelKey) {
