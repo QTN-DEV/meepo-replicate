@@ -203,7 +203,10 @@ import imageCompression from "https://cdn.jsdelivr.net/npm/browser-image-compres
 function filesToBase64(input, options = {}) {
   const files = Array.from(input?.files ?? []);
   if (!files.length) return Promise.resolve([]);
-  const { skipCompression = false } = options;
+  const { skipCompression = false, onProgress } = options;
+
+  let processedCount = 0;
+  const totalFiles = files.length;
 
   return Promise.all(
     files.map(
@@ -215,6 +218,8 @@ function filesToBase64(input, options = {}) {
           if (!skipCompression && file.size > 2 * 1024 * 1024) {
             try {
               console.log(`Compressing ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)...`);
+              if (onProgress) onProgress({ status: "compressing", file: file.name });
+
               const options = {
                 maxSizeMB: 2,
                 maxWidthOrHeight: 1920,
@@ -229,7 +234,11 @@ function filesToBase64(input, options = {}) {
           }
 
           const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
+          reader.onload = () => {
+            processedCount++;
+            if (onProgress) onProgress({ status: "processed", count: processedCount, total: totalFiles });
+            resolve(reader.result);
+          };
           reader.onerror = (err) => reject(err);
           reader.readAsDataURL(fileToProcess);
         }),
@@ -411,13 +420,15 @@ function setActiveOutputTab(tabName) {
   }
 }
 
-function toggleRunning(isRunning, config) {
+function toggleRunning(isRunning, config, statusText = "Generating…") {
   const runButton = config?.runButton;
   if (!runButton) return;
 
   if (isRunning) {
-    runButton.dataset.originalHtml = runButton.innerHTML;
-    runButton.innerHTML = "Generating…";
+    if (!runButton.disabled) {
+      runButton.dataset.originalHtml = runButton.innerHTML;
+    }
+    runButton.innerHTML = statusText;
     runButton.disabled = true;
   } else {
     runButton.innerHTML = runButton.dataset.originalHtml || "Run";
@@ -519,13 +530,18 @@ function createNanoBananaConfig() {
     renderFilePreviewList(fileInput, previewContainer);
   }
 
-  async function gatherPayload() {
+  async function gatherPayload(onProgress) {
     const prompt = promptField.value;
     const aspect_ratio = aspectSelect.value;
     const resolution = resolutionSelect.value;
     const output_format = outputFormatSelect.value;
     const safety_filter_level = safetyFilterLevelSelect.value;
-    const image_input = await filesToBase64(fileInput);
+
+    const image_input = await filesToBase64(fileInput, {
+      onProgress: (progress) => {
+        if (onProgress) onProgress(progress);
+      }
+    });
 
     const payload = {
       model_key: "nano-banana",
@@ -736,11 +752,21 @@ async function handleSubmit(event, modelKey) {
   setActiveOutputTab("preview");
 
   try {
-    const { payload, downloadExtension } = await config.gatherPayload();
+    // Disable button immediately and show initial status
+    toggleRunning(true, config, "Preparing...");
+
+    const { payload, downloadExtension } = await config.gatherPayload((progress) => {
+      if (progress.status === "compressing") {
+        toggleRunning(true, config, `Compressing ${progress.file}...`);
+      } else if (progress.status === "processed") {
+        toggleRunning(true, config, `Processed ${progress.count}/${progress.total}`);
+      }
+    });
     payload.prompt = (payload.prompt || "").trim();
 
     if (modelKey !== "remove-bg" && !payload.prompt) {
       showToast("Please provide a prompt before running the model.", "error");
+      toggleRunning(false, config); // Re-enable if validation fails
       return;
     }
 
@@ -751,7 +777,7 @@ async function handleSubmit(event, modelKey) {
     resetModelState(modelKey, { preserveDownloadExtension: true });
     applyStateToPreview(modelKey, { fallbackAspect: getExpectedAspectForModel(modelKey) });
 
-    toggleRunning(true, config);
+    toggleRunning(true, config, "Generating...");
 
     const response = await fetch("/api/predictions", {
       method: "POST",
@@ -802,6 +828,7 @@ async function handleSubmit(event, modelKey) {
     toggleRunning(false, config);
   }
 }
+
 
 function resetModelForm(modelKey, { silent = false } = {}) {
   const config = modelConfigs[modelKey];
