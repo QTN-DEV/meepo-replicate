@@ -23,8 +23,5 @@ COPY --from=build /app /app
 # Expose the port your server uses (default 3000)
 EXPOSE 3000
 
-# Environment variable (optional)
-ENV NODE_ENV=production
-
 # Start the app
 CMD ["node", "server.js"]
