@@ -23,7 +23,7 @@ pipeline {
   stages {
     stage('Checkout') {
       steps {
-        git branch: "${env.GIT_BRANCH}", credentialsId: "${env.GIT_CREDENTIAL}", url: "https://github.com/Bytes-Quantum/${env.GIT_REPO}.git"
+        git branch: "${env.GIT_BRANCH}", credentialsId: "${env.GIT_CREDENTIAL}", url: "https://github.com/QTN-DEV/${env.GIT_REPO}.git"
         sh 'echo "Checked out branch: $(git rev-parse --abbrev-ref HEAD)"; git rev-parse --short HEAD'
       }
     }
