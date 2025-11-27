@@ -7,9 +7,9 @@ pipeline {
     GIT_REPO = 'meepo-replicate'
     GIT_BRANCH = 'main'
     GIT_CREDENTIAL = 'meepo-autobot'
-    ENV_FILE_CREDENTIAL = 'meepo-replicate-key'   // optional file credential id for .env
-    REGISTRY_CREDENTIAL = 'dockerhub-qtn' // DockerHub username/password credential id
-    RANCHER_TOKEN_CREDENTIAL = 'meepo-bearer-token' // Rancher access token credential id
+    ENV_FILE_CREDENTIAL = 'meepo-replicate-key'
+    REGISTRY_CREDENTIAL = 'dockerhub-qtn'
+    RANCHER_TOKEN_CREDENTIAL = 'meepo-bearer-token'
     RANCHER_PROJECT_ID = 'local:p-ngpnh'
     RANCHER_URL = 'https://dev-rancher.quantumteknologi.com'
     RANCHER_NAMESPACE = 'meepo-replicate'
@@ -21,35 +21,22 @@ pipeline {
   }
 
   stages {
+
     stage('Checkout') {
       steps {
         git branch: "${env.GIT_BRANCH}", credentialsId: "${env.GIT_CREDENTIAL}", url: "https://github.com/QTN-DEV/${env.GIT_REPO}.git"
-        sh 'echo "Checked out branch: $(git rev-parse --abbrev-ref HEAD)"; git rev-parse --short HEAD'
+        sh 'echo "Checked out branch: $(git rev-parse --abbrev-ref HEAD)"'
       }
     }
 
-    stage('Checkout & version check') {
+    stage('Set Commit Hash Tag') {
       steps {
         script {
-          withCredentials([usernamePassword(credentialsId: "${GIT_CREDENTIAL}", usernameVariable: 'GIT_USERNAME', passwordVariable: 'GIT_PASSWORD')]) {
-            sh '''
-              git remote set-url origin https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/QTN-DEV/${GIT_REPO}.git
-              git fetch --tags
-            '''
-          }
-          
-          def CURRENT_TAG = sh(script: "git describe --exact-match --tags || echo ''", returnStdout: true).trim()
-          echo "Current tag: ${CURRENT_TAG}"
+          def COMMIT_HASH = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+          echo "Commit Hash: ${COMMIT_HASH}"
 
-          if (CURRENT_TAG && !CURRENT_TAG.isEmpty() && CURRENT_TAG.contains("/")) {
-            def parts = CURRENT_TAG.tokenize('/')
-            if (parts.size() == 2 && parts[0] == 'prod') {
-              def tagVersion = parts[1]
-              env.IMAGE_TAG = "prod-${tagVersion}"
-              env.CURRENT_TAG = CURRENT_TAG
-              echo "✅ IMAGE_TAG: ${env.IMAGE_TAG}"
-            }
-          }
+          env.IMAGE_TAG = COMMIT_HASH
+          echo "✅ Using IMAGE_TAG = ${env.IMAGE_TAG}"
         }
       }
     }
@@ -65,12 +52,9 @@ pipeline {
     stage('Build image') {
       steps {
         script {
-          def DOCKERFILE_PATH = 'Dockerfile'
-          def BUILD_CONTEXT = '.'
-
           sh """
             echo "Building image: ${DOCKERHUB_NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG}"
-            docker build --file ${DOCKERFILE_PATH} -t ${DOCKERHUB_NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG} ${BUILD_CONTEXT}
+            docker build -f Dockerfile -t ${DOCKERHUB_NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG} .
           """
         }
       }
@@ -80,7 +64,7 @@ pipeline {
       steps {
         withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIAL}", usernameVariable: 'DH_USER', passwordVariable: 'DH_PWD')]) {
           sh '''
-            echo "Logging into QTN DockerHub..."
+            echo "Logging into DockerHub..."
             echo "$DH_PWD" | docker login --username "$DH_USER" --password-stdin
             docker push ${DOCKERHUB_NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG}
             docker logout || true
@@ -129,7 +113,6 @@ pipeline {
           docker rmi ${DOCKERHUB_NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG} || true
           docker image prune -f || true
           [ -f .env ] && rm -f .env || true
-          [ -f $WORKSPACE/build.env ] && rm -f $WORKSPACE/build.env || true
         """
       }
     }
