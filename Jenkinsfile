@@ -86,7 +86,7 @@ pipeline {
               echo "Calling: $WORKLOAD_URL"
     
               # Update ONLY the container image — fastest Rancher method
-              curl -s -k -X PUT \
+              curl -s -v -k -X PUT \
                 -H "Authorization: Bearer ${RANCHER_TOKEN}" \
                 -H "Content-Type: application/json" \
                 "${WORKLOAD_URL}" \
