@@ -79,17 +79,13 @@ pipeline {
           withCredentials([string(credentialsId: "${RANCHER_TOKEN_CREDENTIAL}", variable: 'RANCHER_TOKEN')]) {
     
             sh '''
-              # URL encode colons for Rancher workload ID
-              WORKLOAD_ID="deployment:${RANCHER_NAMESPACE}:${RANCHER_DEPLOYMENT_NAME}"
-              WORKLOAD_ID_ENCODED=$(printf "%s" "$WORKLOAD_ID" | sed 's/:/%3A/g')
-    
-              WORKLOAD_URL="${RANCHER_URL}/v3/project/${RANCHER_PROJECT_ID}/workloads/${WORKLOAD_ID_ENCODED}"
-    
+              WORKLOAD_URL="${RANCHER_URL}/v3/project/${RANCHER_PROJECT_ID}/workloads/deployment:${RANCHER_NAMESPACE}:${RANCHER_DEPLOYMENT_NAME}"
               NEW_IMAGE="${DOCKERHUB_NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG}"
     
               echo "Updating image to: $NEW_IMAGE"
-              echo "Target workload: $WORKLOAD_URL"
+              echo "Calling: $WORKLOAD_URL"
     
+              # Update ONLY the container image — fastest Rancher method
               curl -s -k -X PUT \
                 -H "Authorization: Bearer ${RANCHER_TOKEN}" \
                 -H "Content-Type: application/json" \
@@ -115,9 +111,7 @@ pipeline {
         }
       }
     }
-
-
-    
+        
     stage('Cleanup') {
       steps {
         sh """
