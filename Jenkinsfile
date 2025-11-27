@@ -33,7 +33,7 @@ pipeline {
         script {
           withCredentials([usernamePassword(credentialsId: "${GIT_CREDENTIAL}", usernameVariable: 'GIT_USERNAME', passwordVariable: 'GIT_PASSWORD')]) {
             sh '''
-              git remote set-url origin https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/Bytes-Quantum/${GIT_REPO}.git
+              git remote set-url origin https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/QTN-DEV/${GIT_REPO}.git
               git fetch --tags
             '''
           }
