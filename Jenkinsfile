@@ -77,36 +77,47 @@ pipeline {
       steps {
         script {
           withCredentials([string(credentialsId: "${RANCHER_TOKEN_CREDENTIAL}", variable: 'RANCHER_TOKEN')]) {
+    
             sh '''
-              WORKLOAD_URL="${RANCHER_URL}/v3/project/${RANCHER_PROJECT_ID}/workloads/deployment:${RANCHER_NAMESPACE}:${RANCHER_DEPLOYMENT_NAME}"
+              # URL encode colons for Rancher workload ID
+              WORKLOAD_ID="deployment:${RANCHER_NAMESPACE}:${RANCHER_DEPLOYMENT_NAME}"
+              WORKLOAD_ID_ENCODED=$(printf "%s" "$WORKLOAD_ID" | sed 's/:/%3A/g')
+    
+              WORKLOAD_URL="${RANCHER_URL}/v3/project/${RANCHER_PROJECT_ID}/workloads/${WORKLOAD_ID_ENCODED}"
+    
               NEW_IMAGE="${DOCKERHUB_NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG}"
-              
+    
               echo "Updating image to: $NEW_IMAGE"
-              
-              UPDATE_PAYLOAD=$(curl -s -k \
-                -H "Authorization: Bearer ${RANCHER_TOKEN}" \
-                "${WORKLOAD_URL}" | jq --arg image "$NEW_IMAGE" \
-                '.containers[0].image = $image')
-              
+              echo "Target workload: $WORKLOAD_URL"
+    
               curl -s -k -X PUT \
                 -H "Authorization: Bearer ${RANCHER_TOKEN}" \
                 -H "Content-Type: application/json" \
                 "${WORKLOAD_URL}" \
-                -d "$UPDATE_PAYLOAD"
-              
+                -d "{
+                      \\\"containers\\\": [
+                        {
+                          \\\"name\\\": \\\"${RANCHER_DEPLOYMENT_NAME}\\\",
+                          \\\"image\\\": \\\"${NEW_IMAGE}\\\"
+                        }
+                      ]
+                    }"
+    
               echo "Triggering redeploy..."
-              
+    
               curl -s -k -X POST \
                 -H "Authorization: Bearer ${RANCHER_TOKEN}" \
                 "${WORKLOAD_URL}?action=redeploy"
-              
-              echo "Done"
+    
+              echo "Redeploy done."
             '''
           }
         }
       }
     }
 
+
+    
     stage('Cleanup') {
       steps {
         sh """
