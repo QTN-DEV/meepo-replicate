@@ -7,7 +7,7 @@ pipeline {
     GIT_REPO = 'meepo-replicate'
     GIT_BRANCH = 'main'
     GIT_CREDENTIAL = 'meepo-autobot'
-    ENV_FILE_CREDENTIAL = ''   // optional file credential id for .env
+    ENV_FILE_CREDENTIAL = 'meepo-replicate-key'   // optional file credential id for .env
     REGISTRY_CREDENTIAL = 'dockerhub-qtn' // DockerHub username/password credential id
     RANCHER_TOKEN_CREDENTIAL = 'meepo-bearer-token' // Rancher access token credential id
     RANCHER_PROJECT_ID = 'local:p-ngpnh'
