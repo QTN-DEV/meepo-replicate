@@ -902,9 +902,16 @@ async function handleSubmit(event, modelKey) {
       prediction = pollResult.prediction;
     }
 
+    if (prediction.status === "failed") {
+      throw new Error(prediction.error || "The model failed to generate an image. Please try again.");
+    }
+
+    if (prediction.status === "canceled") {
+      throw new Error("The prediction was canceled.");
+    }
+
     if (prediction.status !== "succeeded") {
-      const message = prediction.error || "Prediction failed or was canceled.";
-      throw new Error(message);
+      throw new Error("Prediction finished with unexpected status: " + prediction.status);
     }
 
     const elapsedSeconds = Number(((Date.now() - startTime) / 1000).toFixed(2));
