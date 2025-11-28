@@ -847,6 +847,8 @@ async function handleSubmit(event, modelKey) {
 
     toggleRunning(true, config, "Generating...");
 
+    const startTime = Date.now();
+
     const response = await fetch("/api/predictions", {
       method: "POST",
       headers: {
@@ -855,26 +857,43 @@ async function handleSubmit(event, modelKey) {
       body: JSON.stringify(payload),
     });
 
-    const result = await response.json();
+    let result = await response.json();
 
     if (!response.ok) {
-      const message = result?.error || "Failed to generate image.";
-      showToast(message, "error");
-      if (modelKey === activeModelKey) {
-        outputJson.textContent = JSON.stringify(result ?? {}, null, 2);
-        generatedTime.textContent = "—";
-      }
-      return;
+      const message = result?.error || "Failed to start prediction.";
+      throw new Error(message);
     }
 
-    const { prediction, elapsed_seconds } = result;
+    let prediction = result.prediction;
+
+    // Poll for completion
+    while (
+      prediction.status !== "succeeded" &&
+      prediction.status !== "failed" &&
+      prediction.status !== "canceled"
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      const pollResponse = await fetch(`/api/predictions/${prediction.id}`);
+      const pollResult = await pollResponse.json();
+
+      if (!pollResponse.ok) {
+        const message = pollResult?.error || "Failed to poll prediction status.";
+        throw new Error(message);
+      }
+
+      prediction = pollResult.prediction;
+    }
+
+    if (prediction.status !== "succeeded") {
+      const message = prediction.error || "Prediction failed or was canceled.";
+      throw new Error(message);
+    }
+
+    const elapsedSeconds = Number(((Date.now() - startTime) / 1000).toFixed(2));
 
     state.prediction = prediction;
-    const parsedElapsed =
-      typeof elapsed_seconds === "number"
-        ? elapsed_seconds
-        : Number.parseFloat(elapsed_seconds);
-    state.elapsedSeconds = Number.isFinite(parsedElapsed) ? Number(parsedElapsed.toFixed(2)) : null;
+    state.elapsedSeconds = elapsedSeconds;
 
     const imageUrl = extractImageUrl(prediction, modelKey);
 
@@ -891,7 +910,13 @@ async function handleSubmit(event, modelKey) {
     showToast("Prediction complete.", "success");
   } catch (error) {
     console.error(error);
-    showToast("Unexpected error while running the prediction.", "error");
+    const message = error instanceof Error ? error.message : "Unexpected error while running the prediction.";
+    showToast(message, "error");
+
+    // Update UI with error state if needed
+    if (modelKey === activeModelKey) {
+      generatedTime.textContent = "—";
+    }
   } finally {
     toggleRunning(false, config);
   }

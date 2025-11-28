@@ -277,21 +277,12 @@ app.post("/api/predictions", async (req, res) => {
       }
     }
 
-    const startedAt = Date.now();
-    const rawOutput = await replicate.run(config.version, {
+    const prediction = await replicate.predictions.create({
+      version: config.version,
       input: inputPayload,
     });
 
-    const output = await normalizeRunOutput(rawOutput);
-    const elapsedSeconds = Number(((Date.now() - startedAt) / 1000).toFixed(2));
-
-    return res.json({
-      elapsed_seconds: elapsedSeconds,
-      prediction: {
-        status: "succeeded",
-        output,
-      },
-    });
+    return res.status(201).json({ prediction });
   } catch (error) {
     if (error && typeof error === "object" && "status" in error) {
       return res.status(error.status || 500).json({
@@ -300,6 +291,37 @@ app.post("/api/predictions", async (req, res) => {
       });
     }
     console.error("[/api/predictions] unexpected error:", error);
+    return res.status(500).json({
+      error: "Unexpected server error.",
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+app.get("/api/predictions/:id", async (req, res) => {
+  try {
+    const predictionId = req.params.id;
+    const prediction = await replicate.predictions.get(predictionId);
+
+    if (prediction.status === "succeeded") {
+      const output = await normalizeRunOutput(prediction.output);
+      return res.json({
+        prediction: {
+          ...prediction,
+          output,
+        },
+      });
+    }
+
+    return res.json({ prediction });
+  } catch (error) {
+    if (error && typeof error === "object" && "status" in error) {
+      return res.status(error.status || 500).json({
+        error: error.message || "Replicate request failed.",
+        details: error.details,
+      });
+    }
+    console.error(`[/api/predictions/${req.params.id}] unexpected error:`, error);
     return res.status(500).json({
       error: "Unexpected server error.",
       details: error instanceof Error ? error.message : String(error),
