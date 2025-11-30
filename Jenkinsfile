@@ -2,18 +2,20 @@ pipeline {
   agent any
 
   environment {
-    IMAGE_NAME = 'meepo-replicate'
-    DOCKERHUB_NAMESPACE = 'quantumteknologi'
-    GIT_REPO = 'meepo-replicate'
-    GIT_BRANCH = 'main'
-    GIT_CREDENTIAL = 'meepo-autobot'
-    ENV_FILE_CREDENTIAL = 'meepo-replicate-key'
-    REGISTRY_CREDENTIAL = 'dockerhub-qtn'
-    RANCHER_TOKEN_CREDENTIAL = 'meepo-rancher-secret'
-    RANCHER_PROJECT_ID = 'local:p-ngpnh'
-    RANCHER_URL = 'https://dev-rancher.quantumteknologi.com'
-    RANCHER_NAMESPACE = 'meepo-replicate'
-    RANCHER_DEPLOYMENT_NAME = 'meepo-replicate'
+    IMAGE_NAME = "meepo-replicate"
+    DOCKERHUB_NAMESPACE = "quantumteknologi"
+    GIT_REPO = "meepo-replicate"
+    GIT_BRANCH = "main"
+    GIT_CREDENTIAL = "meepo-autobot"
+
+    ENV_FILE_CREDENTIAL = "meepo-replicate-key"
+    REGISTRY_CREDENTIAL = "dockerhub-qtn"
+
+    # Important for kubectl access
+    KUBECONFIG_CREDENTIAL = "kubeconfig-rafli"
+
+    K8S_NAMESPACE = "meepo-replicate"
+    DEPLOYMENT_NAME = "meepo-replicate"
   }
 
   options {
@@ -24,15 +26,18 @@ pipeline {
 
     stage('Checkout') {
       steps {
-        git branch: "${env.GIT_BRANCH}", credentialsId: "${env.GIT_CREDENTIAL}", url: "https://github.com/QTN-DEV/${env.GIT_REPO}.git"
+        git branch: "${GIT_BRANCH}", credentialsId: "${GIT_CREDENTIAL}", url: "https://github.com/QTN-DEV/${GIT_REPO}.git"
       }
     }
 
-    stage('Set Commit Hash Tag') {
+    stage('Set Commit Hash as Tag') {
       steps {
         script {
-          env.IMAGE_TAG = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
-          echo "IMAGE_TAG = ${env.IMAGE_TAG}"
+          env.IMAGE_TAG = sh(
+            script: "git rev-parse --short HEAD",
+            returnStdout: true
+          ).trim()
+          echo "Using IMAGE_TAG = ${env.IMAGE_TAG}"
         }
       }
     }
@@ -45,15 +50,16 @@ pipeline {
       }
     }
 
-    stage('Build image') {
+    stage('Build Docker Image') {
       steps {
         sh """
-          docker build -f Dockerfile -t ${DOCKERHUB_NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG} .
+          docker build -f Dockerfile \
+          -t ${DOCKERHUB_NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG} .
         """
       }
     }
 
-    stage('Push image') {
+    stage('Push Docker Image') {
       steps {
         withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIAL}", usernameVariable: 'DH_USER', passwordVariable: 'DH_PWD')]) {
           sh '''
@@ -65,43 +71,29 @@ pipeline {
       }
     }
 
-    stage('PATCH Update via Rancher') {
+    stage('Update Deployment via kubectl') {
       steps {
-        script {
-          withCredentials([string(credentialsId: "${RANCHER_TOKEN_CREDENTIAL}", variable: 'RANCHER_TOKEN')]) {
+        withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIAL}", variable: 'KUBECONFIG_FILE')]) {
 
-            sh '''
-              WORKLOAD_URL="${RANCHER_URL}/v3/project/${RANCHER_PROJECT_ID}/workloads/deployment:${RANCHER_NAMESPACE}:${RANCHER_DEPLOYMENT_NAME}"
-              NEW_IMAGE="${DOCKERHUB_NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG}"
+          sh '''
+            export KUBECONFIG=${KUBECONFIG_FILE}
 
-              echo "Patching workload image to: $NEW_IMAGE"
+            echo "Updating image using kubectl..."
+            kubectl set image deployment/${DEPLOYMENT_NAME} \
+              ${DEPLOYMENT_NAME}=${DOCKERHUB_NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG} \
+              -n ${K8S_NAMESPACE} --record
 
-              curl -s -k -X PATCH \
-                -H "Authorization: Bearer ${RANCHER_TOKEN}" \
-                -H "Content-Type: application/json-patch+json" \
-                "${WORKLOAD_URL}" \
-                -d "[
-                      {
-                        \\"op\\": \\"replace\\",
-                        \\"path\\": \\"/containers/0/image\\",
-                        \\"value\\": \\"${NEW_IMAGE}\\"
-                      }
-                    ]"
+            echo "Restarting deployment to force rollout..."
+            kubectl rollout restart deployment/${DEPLOYMENT_NAME} -n ${K8S_NAMESPACE}
 
-              echo "Triggering redeploy..."
-
-              curl -s -k -X POST \
-                -H "Authorization: Bearer ${RANCHER_TOKEN}" \
-                "${WORKLOAD_URL}?action=redeploy"
-
-              echo "Redeploy done."
-            '''
-          }
+            echo "Waiting for rollout..."
+            kubectl rollout status deployment/${DEPLOYMENT_NAME} -n ${K8S_NAMESPACE}
+          '''
         }
       }
     }
 
-    stage('Cleanup') {
+    stage('Cleanup Local Docker Images') {
       steps {
         sh """
           docker rmi ${DOCKERHUB_NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG} || true
@@ -113,7 +105,7 @@ pipeline {
 
   post {
     always {
-      sh '[ -f .env ] && rm -f .env || true'
+      sh 'rm -f .env || true'
     }
   }
 }
