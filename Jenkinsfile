@@ -77,41 +77,36 @@ pipeline {
       steps {
         script {
           withCredentials([string(credentialsId: "${RANCHER_TOKEN_CREDENTIAL}", variable: 'RANCHER_TOKEN')]) {
-    
+
             sh '''
               WORKLOAD_URL="${RANCHER_URL}/v3/project/${RANCHER_PROJECT_ID}/workloads/deployment:${RANCHER_NAMESPACE}:${RANCHER_DEPLOYMENT_NAME}"
               NEW_IMAGE="${DOCKERHUB_NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG}"
-    
-              echo "Updating image to: $NEW_IMAGE"
-              echo "Calling: $WORKLOAD_URL"
-    
-              # Update ONLY the container image — fastest Rancher method
-              curl -s -v -k -X PUT \
+
+              echo "Updating image via Rancher setpodimage..."
+
+              curl -s -k -X POST \
                 -H "Authorization: Bearer ${RANCHER_TOKEN}" \
                 -H "Content-Type: application/json" \
-                "${WORKLOAD_URL}" \
+                "${WORKLOAD_URL}?action=setpodimage" \
                 -d "{
-                      \\\"containers\\\": [
-                        {
-                          \\\"name\\\": \\\"${RANCHER_DEPLOYMENT_NAME}\\\",
-                          \\\"image\\\": \\\"${NEW_IMAGE}\\\"
-                        }
-                      ]
+                      \\"containers\\": {
+                        \\"${RANCHER_DEPLOYMENT_NAME}\\": \\"${NEW_IMAGE}\\"
+                      }
                     }"
-    
+
               echo "Triggering redeploy..."
-    
+
               curl -s -k -X POST \
                 -H "Authorization: Bearer ${RANCHER_TOKEN}" \
                 "${WORKLOAD_URL}?action=redeploy"
-    
+
               echo "Redeploy done."
             '''
           }
         }
       }
     }
-        
+
     stage('Cleanup') {
       steps {
         sh """
