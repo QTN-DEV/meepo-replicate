@@ -2,7 +2,7 @@ import path from "path";
 import express from "express";
 import dotenv from "dotenv";
 import Replicate from "replicate";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import { fileURLToPath } from "url";
 
 dotenv.config();
@@ -13,14 +13,17 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const DEFAULT_MODEL_KEY = (process.env.REPLICATE_DEFAULT_MODEL_KEY || "seedream").toLowerCase();
+const DEFAULT_MODEL_KEY = (process.env.REPLICATE_DEFAULT_MODEL_KEY || "nano-banana").toLowerCase();
 const REFINE_MODEL_VERSION = process.env.REPLICATE_REFINE_MODEL_VERSION;
 
 const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN,
 });
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+// In-memory store for async predictions
+const predictions = new Map();
 
 const MODEL_CONFIG = {
   seedream: {
@@ -170,7 +173,7 @@ app.post("/api/predictions", async (req, res) => {
     const rawModelKey = typeof body.model_key === "string" ? body.model_key : undefined;
     const modelKey = (rawModelKey || DEFAULT_MODEL_KEY).toLowerCase();
 
-    // Handle nano-banana with Gemini API
+    // Handle nano-banana with Gemini API (async processing)
     if (modelKey === "nano-banana") {
       const geminiKey = process.env.GEMINI_API_KEY;
       if (!geminiKey) {
@@ -186,51 +189,118 @@ app.post("/api/predictions", async (req, res) => {
         return res.status(400).json({ error: 'Field "prompt" is required.' });
       }
 
+      // Create prediction ID
+      const predictionId = `gemini-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const createdAt = new Date().toISOString();
+
+      // Initialize prediction in store
+      const prediction = {
+        id: predictionId,
+        status: "processing",
+        output: null,
+        created_at: createdAt,
+        completed_at: null,
+        elapsed_seconds: null,
+      };
+
+      predictions.set(predictionId, prediction);
+
+      // Start async processing
       const startTime = Date.now();
 
-      try {
-        const model = genAI.getGenerativeModel({ model: "gemini-3-pro-image-preview" });
+      (async () => {
+        try {
+          // Parse parameters
+          const aspectRatio = typeof body.aspect_ratio === "string" ? body.aspect_ratio : "4:3";
+          const imageSize = typeof body.image_size === "string" ? body.image_size : "1K";
+          const candidateCount = typeof body.candidateCount === "number" ? body.candidateCount : 1;
 
-        const result = await model.generateContent(trimmedPrompt);
-        const response = await result.response;
+          // Parse image input
+          const imageInput = Array.isArray(body.image_input)
+            ? body.image_input.filter((item) => typeof item === "string" && item.trim())
+            : [];
 
-        // Extract image data from response
-        let imageUrl = null;
-        if (response.candidates && response.candidates.length > 0) {
-          const candidate = response.candidates[0];
-          if (candidate.content && candidate.content.parts) {
-            for (const part of candidate.content.parts) {
-              if (part.inlineData) {
-                // Convert inline data to base64 data URL
-                const mimeType = part.inlineData.mimeType || "image/png";
-                const data = part.inlineData.data;
-                imageUrl = `data:${mimeType};base64,${data}`;
-                break;
+          // Build contents
+          const parts = [{ text: trimmedPrompt }];
+
+          if (imageInput.length > 0) {
+            for (const imageData of imageInput) {
+              const match = imageData.match(/^data:image\/(\w+);base64,(.+)$/);
+              if (match) {
+                const [, mimeType, base64Data] = match;
+                parts.push({
+                  inlineData: {
+                    mimeType: `image/${mimeType}`,
+                    data: base64Data
+                  }
+                });
               }
             }
           }
+
+          const contents = [{ role: 'user', parts }];
+
+          // Configure model
+          const config = {
+            responseModalities: ['IMAGE'],
+            imageConfig: {
+              imageSize: imageSize,
+              aspectRatio: aspectRatio,
+            },
+          };
+
+          console.log(`[${predictionId}] Starting Gemini API call...`);
+
+          const response = await genAI.models.generateContentStream({
+            model: "gemini-3-pro-image-preview",
+            config: config,
+            contents: contents,
+          });
+
+          // Extract image data from stream response
+          let imageUrls = [];
+          for await (const chunk of response) {
+            if (chunk.candidates && chunk.candidates[0].content && chunk.candidates[0].content.parts) {
+              for (const part of chunk.candidates[0].content.parts) {
+                if (part.inlineData) {
+                  const mimeType = part.inlineData.mimeType || "image/png";
+                  const data = part.inlineData.data;
+                  imageUrls.push(`data:${mimeType};base64,${data}`);
+                }
+              }
+            }
+          }
+
+          const elapsedSeconds = Number(((Date.now() - startTime) / 1000).toFixed(2));
+
+          // Update prediction with success
+          const storedPrediction = predictions.get(predictionId);
+          if (storedPrediction) {
+            storedPrediction.status = "succeeded";
+            storedPrediction.output = imageUrls.length > 0 ? imageUrls : null;
+            storedPrediction.completed_at = new Date().toISOString();
+            storedPrediction.elapsed_seconds = elapsedSeconds;
+            console.log(`[${predictionId}] Generation completed successfully`);
+          }
+        } catch (geminiError) {
+          console.error(`[${predictionId}] Gemini API error:`);
+          console.error("Error type:", typeof geminiError);
+          console.error("Error:", geminiError);
+          console.error("Error message:", geminiError?.message);
+
+          // Update prediction with error
+          const storedPrediction = predictions.get(predictionId);
+          if (storedPrediction) {
+            storedPrediction.status = "failed";
+            storedPrediction.error = geminiError instanceof Error ? geminiError.message : String(geminiError);
+            storedPrediction.completed_at = new Date().toISOString();
+            storedPrediction.elapsed_seconds = Number(((Date.now() - startTime) / 1000).toFixed(2));
+          }
         }
+      })();
 
-        const elapsedSeconds = Number(((Date.now() - startTime) / 1000).toFixed(2));
-
-        // Return in Replicate-compatible format
-        const prediction = {
-          id: `gemini-${Date.now()}`,
-          status: "succeeded",
-          output: imageUrl ? [imageUrl] : null,
-          created_at: new Date().toISOString(),
-          completed_at: new Date().toISOString(),
-          elapsed_seconds: elapsedSeconds,
-        };
-
-        return res.status(201).json({ prediction });
-      } catch (geminiError) {
-        console.error("[/api/predictions] Gemini API error:", geminiError);
-        return res.status(500).json({
-          error: "Gemini API request failed.",
-          details: geminiError instanceof Error ? geminiError.message : String(geminiError),
-        });
-      }
+      // Return immediately with processing status
+      return res.status(201).json({ prediction });
     }
 
     // Handle other models with Replicate API
@@ -365,6 +435,18 @@ app.post("/api/predictions", async (req, res) => {
 app.get("/api/predictions/:id", async (req, res) => {
   try {
     const predictionId = req.params.id;
+
+    // Check if it's a Gemini prediction (in-memory)
+    if (predictionId.startsWith("gemini-")) {
+      const prediction = predictions.get(predictionId);
+      if (prediction) {
+        return res.json({ prediction });
+      } else {
+        return res.status(404).json({ error: "Prediction not found" });
+      }
+    }
+
+    // Otherwise, fetch from Replicate
     const prediction = await replicate.predictions.get(predictionId);
 
     if (prediction.status === "succeeded") {

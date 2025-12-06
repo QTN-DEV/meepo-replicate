@@ -88,38 +88,22 @@
 
           <label class="field">
             <span class="field__label">
-              resolution <span class="type-hint">string</span>
+              image_size <span class="type-hint">string</span>
             </span>
-            <select id="nano-banana-resolution" name="resolution" class="field__control">
+            <select id="nano-banana-image-size" name="image_size" class="field__control">
               <option value="2K" selected>2K</option>
               <option value="4K">4K</option>
             </select>
-            <span class="field__hint">Resolution of the generated image</span>
+            <span class="field__hint">Size of the generated image</span>
           </label>
 
           <label class="field">
             <span class="field__label">
-              output_format <span class="type-hint">string</span>
+              candidateCount <span class="type-hint">number</span>
             </span>
-            <select id="nano-banana-output-format" name="output_format" class="field__control">
-              <option value="png" selected>png</option>
-              <option value="jpg">jpg</option>
-              <option value="webp">webp</option>
-            </select>
-            <span class="field__hint">Format of the output image</span>
-          </label>
-
-          <label class="field">
-            <span class="field__label">
-              safety_filter_level <span class="type-hint">string</span>
-            </span>
-            <select id="nano-banana-safety-filter-level" name="safety_filter_level" class="field__control">
-              <option value="block_only_high" selected>block_only_high</option>
-              <option value="block_medium_and_above">block_medium_and_above</option>
-              <option value="block_low_and_above">block_low_and_above</option>
-            </select>
-            <span class="field__hint">block_low_and_above is strictest, block_medium_and_above blocks some prompts,
-              block_only_high is most permissive but some prompts will still be blocked</span>
+            <input id="nano-banana-candidate-count" type="number" name="candidateCount" class="field__control" min="1"
+              max="4" value="1" />
+            <span class="field__hint">Number of output images to generate (1-4)</span>
           </label>
 
           <div class="form__actions">

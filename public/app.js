@@ -490,17 +490,14 @@ function createNanoBananaConfig() {
   const fileInput = document.getElementById("nano-banana-image-input");
   const previewContainer = document.getElementById("nano-banana-image-preview");
   const aspectSelect = document.getElementById("nano-banana-aspect-ratio");
-  const resolutionSelect = document.getElementById("nano-banana-resolution");
-  const outputFormatSelect = document.getElementById("nano-banana-output-format");
-  const safetyFilterLevelSelect = document.getElementById("nano-banana-safety-filter-level");
+  const imageSizeSelect = document.getElementById("nano-banana-image-size");
+  const candidateCountInput = document.getElementById("nano-banana-candidate-count");
 
   const defaults = {
-    prompt:
-      "How engineers see the San Francisco Bridge",
+    prompt: "How engineers see the San Francisco Bridge",
     aspect_ratio: "4:3",
-    resolution: "2K",
-    output_format: "png",
-    safety_filter_level: "block_only_high",
+    image_size: "2K",
+    candidateCount: 1,
   };
 
   let matchInputAspect = null;
@@ -595,9 +592,8 @@ function createNanoBananaConfig() {
   function resetFields() {
     promptField.value = defaults.prompt;
     aspectSelect.value = defaults.aspect_ratio;
-    resolutionSelect.value = defaults.resolution;
-    outputFormatSelect.value = defaults.output_format;
-    safetyFilterLevelSelect.value = defaults.safety_filter_level;
+    imageSizeSelect.value = defaults.image_size;
+    candidateCountInput.value = defaults.candidateCount;
     fileInput.value = "";
     selectedFiles = [];
     matchInputAspect = null;
@@ -608,9 +604,8 @@ function createNanoBananaConfig() {
   async function gatherPayload(onProgress) {
     const prompt = promptField.value;
     const aspect_ratio = aspectSelect.value;
-    const resolution = resolutionSelect.value;
-    const output_format = outputFormatSelect.value;
-    const safety_filter_level = safetyFilterLevelSelect.value;
+    const image_size = imageSizeSelect.value;
+    const candidateCount = parseInt(candidateCountInput.value, 10);
 
     const image_input = await filesToBase64(selectedFiles, {
       onProgress: (progress) => {
@@ -622,9 +617,8 @@ function createNanoBananaConfig() {
       model_key: "nano-banana",
       prompt,
       aspect_ratio,
-      resolution,
-      output_format,
-      safety_filter_level,
+      image_size,
+      candidateCount,
     };
 
     if (image_input.length) {
@@ -633,7 +627,7 @@ function createNanoBananaConfig() {
 
     return {
       payload,
-      downloadExtension: output_format || "png",
+      downloadExtension: "png",
     };
   }
 
@@ -860,7 +854,7 @@ async function handleSubmit(event, modelKey) {
     toggleRunning(true, config, "Generating...");
 
     const startTime = Date.now();
-    const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+    const TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes (Gemini can take longer)
 
     const response = await fetch("/api/predictions", {
       method: "POST",
@@ -886,10 +880,10 @@ async function handleSubmit(event, modelKey) {
       prediction.status !== "canceled"
     ) {
       if (Date.now() - startTime > TIMEOUT_MS) {
-        throw new Error("Prediction timed out after 5 minutes.");
+        throw new Error("Prediction timed out after 15 minutes.");
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await new Promise((resolve) => setTimeout(resolve, 1000)); // Poll every 1 second
 
       const pollResponse = await fetch(`/api/predictions/${prediction.id}`);
       const pollResult = await pollResponse.json();
