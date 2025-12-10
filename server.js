@@ -240,6 +240,7 @@ app.post("/api/predictions", async (req, res) => {
       // wrap in setImmediate to return response first
       setImmediate(async () => {
         let heartbeatInterval;
+        const startTime = Date.now();
         try {
           console.log(`[${predictionId}] Starting Processing. Heap: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`);
 
