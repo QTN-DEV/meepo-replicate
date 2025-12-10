@@ -64,7 +64,7 @@ pipeline {
         withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIAL}", 
                   usernameVariable: 'DH_USER', passwordVariable: 'DH_PWD')]) {
           sh '''
-            echo "$DH_PWD" | docker login --username "$DH_USER" --password-stdin
+            echo "$DH_PWD" | docker login --username "$DH_USER" --password-stdin swr.ap-southeast-4.myhuaweicloud.com
             docker push ${DOCKERHUB_NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG}
             docker logout || true
           '''
