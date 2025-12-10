@@ -31,6 +31,26 @@ if (process.env.GEMINI_API_KEY) {
 // In-memory store for async predictions
 const predictions = new Map();
 
+// Cleanup: remove predictions older than 1 hour, check every 5 mins
+setInterval(() => {
+  try {
+    const now = Date.now();
+    let removed = 0;
+    for (const [id, pred] of predictions.entries()) {
+      const created = new Date(pred.created_at).getTime();
+      if (now - created > 60 * 60 * 1000) {
+        predictions.delete(id);
+        removed++;
+      }
+    }
+    if (removed > 0 || predictions.size > 0) {
+      console.log(`[System] Cleanup: removed ${removed}. Active: ${predictions.size}. Heap: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`);
+    }
+  } catch (e) {
+    console.error("[System] Cleanup error:", e);
+  }
+}, 5 * 60 * 1000);
+
 const MODEL_CONFIG = {
   seedream: {
     envKey: "REPLICATE_SEEDREAM_VERSION",
@@ -219,7 +239,15 @@ app.post("/api/predictions", async (req, res) => {
       // Start async processing
       // wrap in setImmediate to return response first
       setImmediate(async () => {
+        let heartbeatInterval;
         try {
+          console.log(`[${predictionId}] Starting Processing. Heap: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`);
+
+          // Heartbeat to track progress in logs
+          heartbeatInterval = setInterval(() => {
+            console.log(`[${predictionId}] Heartbeat... Heap: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`);
+          }, 2000);
+
           // Parse parameters
           const aspectRatio = typeof body.aspect_ratio === "string" ? body.aspect_ratio : "4:3";
           const imageSize = typeof body.image_size === "string" ? body.image_size : "1K";
@@ -259,8 +287,6 @@ app.post("/api/predictions", async (req, res) => {
             },
           };
 
-          console.log(`[${predictionId}] Starting Gemini API call...`);
-
           const response = await genAI.models.generateContentStream({
             model: "gemini-3-pro-image-preview",
             config: config,
@@ -270,8 +296,8 @@ app.post("/api/predictions", async (req, res) => {
           // Extract image data from stream response
           let imageUrls = [];
           for await (const chunk of response) {
-            // Force yield to event loop to allow polling requests to be answered
-            await new Promise((resolve) => setTimeout(resolve, 0));
+            // AGGRESSIVE YIELD: 100ms pause to ensure event loop is free for polling requests
+            await new Promise((resolve) => setTimeout(resolve, 100));
 
             if (chunk.candidates && chunk.candidates[0].content && chunk.candidates[0].content.parts) {
               for (const part of chunk.candidates[0].content.parts) {
@@ -284,6 +310,7 @@ app.post("/api/predictions", async (req, res) => {
             }
           }
 
+          clearInterval(heartbeatInterval);
           const elapsedSeconds = Number(((Date.now() - startTime) / 1000).toFixed(2));
 
           // Update prediction with success
@@ -293,13 +320,13 @@ app.post("/api/predictions", async (req, res) => {
             storedPrediction.output = imageUrls.length > 0 ? imageUrls : null;
             storedPrediction.completed_at = new Date().toISOString();
             storedPrediction.elapsed_seconds = elapsedSeconds;
-            console.log(`[${predictionId}] Generation completed successfully`);
+            console.log(`[${predictionId}] Success. Elapsed: ${elapsedSeconds}s. Heap: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`);
           }
         } catch (geminiError) {
-          console.error(`[${predictionId}] Gemini API error:`);
-          console.error("Error type:", typeof geminiError);
-          console.error("Error:", geminiError);
-          console.error("Error message:", geminiError?.message);
+          if (heartbeatInterval) clearInterval(heartbeatInterval);
+
+          console.error(`[${predictionId}] Error:`, geminiError.message);
+          console.error(`[${predictionId}] Heap on error: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`);
 
           // Update prediction with error
           const storedPrediction = predictions.get(predictionId);
