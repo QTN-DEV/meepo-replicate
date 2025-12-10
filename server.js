@@ -20,7 +20,13 @@ const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN,
 });
 
-const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// Initialize GoogleGenAI only if API key is available
+let genAI = null;
+if (process.env.GEMINI_API_KEY) {
+  genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+} else {
+  console.warn("⚠️ GEMINI_API_KEY not set - nano-banana model will not work");
+}
 
 // In-memory store for async predictions
 const predictions = new Map();
@@ -166,6 +172,11 @@ const collectTextSegments = (value, acc) => {
 
 app.use(express.json({ limit: "20mb" }));
 app.use(express.static(path.join(__dirname, "public")));
+
+// Health check endpoint for Cloudflare and load balancers
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+});
 
 app.post("/api/predictions", async (req, res) => {
   try {
