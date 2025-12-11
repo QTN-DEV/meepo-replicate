@@ -1,4 +1,33 @@
 
+const loginOverlay = document.getElementById("login-overlay");
+const loginForm = document.getElementById("login-form");
+const loginPassword = document.getElementById("login-password");
+const loginError = document.getElementById("login-error");
+
+if (loginForm) {
+  loginForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const password = loginPassword.value;
+
+    if (password === "meepo123") {
+      loginOverlay.classList.add("hidden");
+      // Optional: Clear password field for security
+      loginPassword.value = "";
+    } else {
+      loginError.classList.add("visible");
+      // Reset animation
+      loginError.style.animation = 'none';
+      loginError.offsetHeight; /* trigger reflow */
+      loginError.style.animation = null;
+
+      // Hide error after 3 seconds
+      setTimeout(() => {
+        loginError.classList.remove("visible");
+      }, 3000);
+    }
+  });
+}
+
 const outputPreview = document.getElementById("output-preview");
 const outputJson = document.getElementById("output-json");
 const generatedTime = document.getElementById("generated-time");
