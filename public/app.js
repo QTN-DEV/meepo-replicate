@@ -62,6 +62,7 @@ const createInitialState = (downloadExtension = "png") => ({
 const modelStates = {
   "nano-banana": createInitialState("png"),
   "remove-bg": createInitialState("png"),
+  "video": createInitialState("mp4"),
 };
 
 const normalizePositiveNumber = (value) => {
@@ -163,16 +164,27 @@ const applyStateToPreview = (modelKey, { fallbackAspect } = {}) => {
       </div>
     `;
   } else if (state.imageUrl) {
-    const imageElement = document.createElement("img");
-    imageElement.alt = `${modelKey} preview`;
-    imageElement.decoding = "async";
-    imageElement.src = state.imageUrl;
     outputPreview.innerHTML = "";
-    outputPreview.appendChild(imageElement);
+    if (state.downloadExtension === "mp4") {
+      const videoElement = document.createElement("video");
+      videoElement.controls = true;
+      videoElement.autoplay = true;
+      videoElement.loop = true;
+      videoElement.style.width = "100%";
+      videoElement.style.height = "100%";
+      videoElement.src = state.imageUrl;
+      outputPreview.appendChild(videoElement);
+    } else {
+      const imageElement = document.createElement("img");
+      imageElement.alt = `${modelKey} preview`;
+      imageElement.decoding = "async";
+      imageElement.src = state.imageUrl;
+      outputPreview.appendChild(imageElement);
+    }
   } else {
     outputPreview.innerHTML = `
       <div class="preview-placeholder">
-        <span>Generated image will appear here</span>
+        <span>Generated output will appear here</span>
       </div>
     `;
   }
@@ -222,7 +234,13 @@ const updateStateWithImage = (modelKey, imageUrl, downloadExtension) => {
 
   state.imageUrl = imageUrl;
   state.aspect = state.aspect || { ...defaultPreviewAspect };
+  state.aspect = state.aspect || { ...defaultPreviewAspect };
   applyStateToPreview(modelKey);
+
+  if (downloadExtension === "mp4") {
+    // Skip image probing for video
+    return;
+  }
 
   const probe = new Image();
   probe.onload = () => {
@@ -805,6 +823,148 @@ function createRemoveBgConfig() {
     resetButton: form.querySelector('[data-role="reset"]'),
     reset: resetFields,
     gatherPayload,
+  };
+}
+
+function createVideoConfig() {
+  const form = document.getElementById("video-form");
+  const promptField = document.getElementById("video-prompt");
+  const imageInput = document.getElementById("video-image-input");
+  const imagePreview = document.getElementById("video-image-preview");
+
+  const lastFrameInput = document.getElementById("video-last-frame-input");
+  const lastFramePreview = document.getElementById("video-last-frame-preview");
+
+  const referenceImagesInput = document.getElementById("video-reference-images-input");
+  const referenceImagesPreview = document.getElementById("video-reference-images-preview");
+
+  const aspectRatioSelect = document.getElementById("video-aspect-ratio");
+  const resolutionSelect = document.getElementById("video-resolution");
+  const durationSelect = document.getElementById("video-duration");
+
+  const negativePromptField = document.getElementById("video-negative-prompt");
+  const generateAudioCheckbox = document.getElementById("video-generate-audio");
+  const seedInput = document.getElementById("video-seed");
+
+  const defaults = {
+    prompt: "",
+    aspect_ratio: "16:9",
+    resolution: "1080p",
+    duration: "8",
+    generate_audio: true,
+    seed: "",
+    negative_prompt: "",
+  };
+
+  const getPreviewAspect = () => {
+    const aspectValue = aspectRatioSelect.value;
+    const parsed = parseAspectRatioValue(aspectValue);
+    if (parsed) return parsed;
+    return { ...defaultPreviewAspect };
+  };
+
+  expectedAspectResolvers["video"] = () => getPreviewAspect();
+
+  const applyPreviewAspect = () => {
+    if (activeModelKey !== "video") return;
+    if (modelStates["video"].imageUrl) return;
+    applyStateToPreview("video", { fallbackAspect: getPreviewAspect() });
+  };
+
+  aspectRatioSelect.addEventListener("change", () => {
+    applyPreviewAspect();
+  });
+
+  // File input handlers
+  imageInput.addEventListener("change", () => {
+    renderFilePreviewList(Array.from(imageInput.files || []), imagePreview);
+  });
+
+  lastFrameInput.addEventListener("change", () => {
+    renderFilePreviewList(Array.from(lastFrameInput.files || []), lastFramePreview);
+  });
+
+  let selectedReferenceFiles = [];
+  referenceImagesInput.addEventListener("change", () => {
+    const newFiles = Array.from(referenceImagesInput.files || []);
+    if (newFiles.length > 0) {
+      selectedReferenceFiles = [...selectedReferenceFiles, ...newFiles];
+      referenceImagesInput.value = "";
+      updateReferencePreview();
+    }
+  });
+
+  const updateReferencePreview = () => {
+    renderFilePreviewList(selectedReferenceFiles, referenceImagesPreview, (indexToRemove) => {
+      selectedReferenceFiles = selectedReferenceFiles.filter((_, i) => i !== indexToRemove);
+      updateReferencePreview();
+    });
+  };
+
+  function resetFields() {
+    promptField.value = defaults.prompt;
+    aspectRatioSelect.value = defaults.aspect_ratio;
+    resolutionSelect.value = defaults.resolution;
+    durationSelect.value = defaults.duration;
+
+    imageInput.value = "";
+    lastFrameInput.value = "";
+    referenceImagesInput.value = "";
+    selectedReferenceFiles = [];
+
+    negativePromptField.value = defaults.negative_prompt;
+    generateAudioCheckbox.checked = defaults.generate_audio;
+    seedInput.value = defaults.seed;
+
+    renderFilePreviewList([], imagePreview);
+    renderFilePreviewList([], lastFramePreview);
+    updateReferencePreview();
+    applyPreviewAspect();
+  }
+
+  async function gatherPayload() {
+    const prompt = promptField.value;
+    const aspect_ratio = aspectRatioSelect.value;
+    const resolution = resolutionSelect.value;
+    const duration = parseInt(durationSelect.value, 10);
+    const negative_prompt = negativePromptField.value;
+    const generate_audio = generateAudioCheckbox.checked;
+    const seed = seedInput.value ? parseInt(seedInput.value, 10) : null;
+
+    const image = await filesToBase64(imageInput, { skipCompression: true });
+    const last_frame = await filesToBase64(lastFrameInput, { skipCompression: true });
+    const reference_images = await filesToBase64(selectedReferenceFiles, { skipCompression: true }); // Keep as array of base64
+
+    const payload = {
+      model_key: "video",
+      prompt,
+      aspect_ratio,
+      resolution,
+      duration,
+      generate_audio,
+    };
+
+    if (image.length) payload.image = image[0];
+    if (last_frame.length) payload.last_frame = last_frame[0];
+    if (reference_images.length) payload.reference_images = reference_images;
+    if (negative_prompt) payload.negative_prompt = negative_prompt;
+    if (seed !== null && !isNaN(seed)) payload.seed = seed;
+
+    return {
+      payload,
+      downloadExtension: "mp4", // Video always MP4
+    };
+  }
+
+  applyPreviewAspect();
+
+  return {
+    key: "video",
+    form,
+    runButton: form.querySelector('[data-role="run"]'),
+    resetButton: form.querySelector('[data-role="reset"]'),
+    reset: resetFields,
+    gatherPayload,
     getPreviewAspect,
   };
 }
@@ -812,6 +972,7 @@ function createRemoveBgConfig() {
 const modelConfigs = {
   "nano-banana": createNanoBananaConfig(),
   "remove-bg": createRemoveBgConfig(),
+  "video": createVideoConfig(),
 };
 
 const refreshPreviewAspectForModel = (modelKey) => {
@@ -839,7 +1000,9 @@ function setActiveModel(modelKey) {
 
   const modelInfoHeader = document.getElementById("model-info-header");
   if (modelInfoHeader) {
-    const modelName = modelKey === "nano-banana" ? "google/nano-banana-pro" : "briaai/bria-rmbg-2.0";
+    let modelName = "google/nano-banana-pro";
+    if (modelKey === "remove-bg") modelName = "briaai/bria-rmbg-2.0";
+    if (modelKey === "video") modelName = "google/veo-3.1";
     modelInfoHeader.innerHTML = `<strong>Generation Model:</strong> ${modelName}`;
   }
 }

@@ -64,6 +64,9 @@ const MODEL_CONFIG = {
     envKey: "REPLICATE_REMOVE_BG_VERSION",
     version: "cjwbw/rembg:fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003",
   },
+  "video": {
+    model: "google/veo-3.1",
+  },
 };
 
 const DIMENSION_LIMITS = { min: 1024, max: 4096 };
@@ -433,6 +436,27 @@ app.post("/api/predictions", async (req, res) => {
         content_moderation: contentModeration,
         preserve_partial_alpha: preservePartialAlpha,
       };
+    } else if (modelKey === "video") {
+      const aspectRatio = typeof body.aspect_ratio === "string" ? body.aspect_ratio : "16:9";
+      const resolution = typeof body.resolution === "string" ? body.resolution : "1080p";
+      const duration = typeof body.duration === "number" ? body.duration : 8;
+      const generateAudio = body.generate_audio === true;
+
+      inputPayload = {
+        prompt: trimmedPrompt,
+        aspect_ratio: aspectRatio,
+        resolution: resolution,
+        duration: duration,
+        generate_audio: generateAudio,
+      };
+
+      if (body.image) inputPayload.image = body.image;
+      if (body.last_frame) inputPayload.last_frame = body.last_frame;
+      if (Array.isArray(body.reference_images) && body.reference_images.length > 0) {
+        inputPayload.reference_images = body.reference_images;
+      }
+      if (body.negative_prompt) inputPayload.negative_prompt = normalizeText(body.negative_prompt);
+      if (typeof body.seed === "number") inputPayload.seed = body.seed;
     } else {
       const aspectRatio = typeof body.aspect_ratio === "string" ? body.aspect_ratio : "4:3";
       const resolution = typeof body.resolution === "string" ? body.resolution : "2K";
@@ -452,10 +476,17 @@ app.post("/api/predictions", async (req, res) => {
       }
     }
 
-    const prediction = await replicate.predictions.create({
-      version: config.version,
+    const predictionOptions = {
       input: inputPayload,
-    });
+    };
+
+    if (config.version) {
+      predictionOptions.version = config.version;
+    } else if (config.model) {
+      predictionOptions.model = config.model;
+    }
+
+    const prediction = await replicate.predictions.create(predictionOptions);
 
     return res.status(201).json({ prediction });
   } catch (error) {

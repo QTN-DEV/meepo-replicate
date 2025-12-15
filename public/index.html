@@ -47,15 +47,20 @@
       </header>
 
       <div class="cta-switch">
-        <button class="cta-switch__button active" data-model-button="nano-banana">
+        <button class="cta-switch__button" data-model-button="nano-banana">
           <span>Create</span>
           <small>Generate a brand new scene</small>
+        </button>
+        <button class="cta-switch__button" data-model-button="video">
+          <span>Video</span>
+          <small>Generate a video</small>
         </button>
         <button class="cta-switch__button" data-model-button="remove-bg">
           <span>Remove BG</span>
           <small>Remove background from image</small>
         </button>
       </div>
+
 
       <div class="form-wrapper">
         <form id="nano-banana-form" class="form form--active" data-model="nano-banana">
@@ -126,6 +131,126 @@
             <input id="nano-banana-candidate-count" type="number" name="candidateCount" class="field__control" min="1"
               max="4" value="1" />
             <span class="field__hint">Number of output images to generate (1-4)</span>
+          </label>
+
+          <div class="form__actions">
+            <button type="button" class="ghost-button" data-role="reset">
+              Reset to default inputs
+            </button>
+            <button type="submit" class="primary-button" data-role="run">
+              Run <span class="keyboard-hint">(cmd+enter)</span>
+            </button>
+          </div>
+        </form>
+
+        <form id="video-form" class="form form--hidden" data-model="video">
+          <label class="field">
+            <div class="field__header">
+              <span class="field__label">
+                prompt <span class="required">*</span> <span class="type-hint">string</span>
+              </span>
+            </div>
+            <textarea id="video-prompt" name="prompt" class="field__control field__control--textarea" rows="3"
+              required></textarea>
+            <span class="field__hint">Text prompt for video generation</span>
+          </label>
+
+          <label class="field">
+            <span class="field__label">
+              aspect_ratio <span class="type-hint">string</span>
+            </span>
+            <select id="video-aspect-ratio" name="aspect_ratio" class="field__control">
+              <option value="16:9" selected>16:9</option>
+              <option value="9:16">9:16</option>
+            </select>
+            <span class="field__hint">Video aspect ratio</span>
+          </label>
+
+          <label class="field">
+            <span class="field__label">
+              duration <span class="type-hint">integer</span>
+            </span>
+            <select id="video-duration" name="duration" class="field__control">
+              <option value="8" selected>8</option>
+              <option value="4">4</option>
+            </select>
+            <span class="field__hint">Video duration in seconds</span>
+          </label>
+
+          <label class="field">
+            <span class="field__label">
+              image <span class="type-hint">file</span>
+            </span>
+            <div class="dropzone">
+              <input id="video-image-input" type="file" name="image" accept="image/*" />
+              <span>Enter a URL, paste a file, or drag a file over.</span>
+            </div>
+            <div class="file-preview-list file-preview-list--empty" id="video-image-preview" aria-live="polite">
+            </div>
+            <span class="field__hint">Input image to start generating from.</span>
+          </label>
+
+          <label class="field">
+            <span class="field__label">
+              last_frame <span class="type-hint">file</span>
+            </span>
+            <div class="dropzone">
+              <input id="video-last-frame-input" type="file" name="last_frame" accept="image/*" />
+              <span>Enter a URL, paste a file, or drag a file over.</span>
+            </div>
+            <div class="file-preview-list file-preview-list--empty" id="video-last-frame-preview" aria-live="polite">
+            </div>
+            <span class="field__hint">Ending image for interpolation.</span>
+          </label>
+
+          <label class="field">
+            <span class="field__label">
+              reference_images <span class="type-hint">file[]</span>
+            </span>
+            <div class="dropzone">
+              <input id="video-reference-images-input" type="file" name="reference_images" accept="image/*" multiple />
+              <span>Add multiple files</span>
+            </div>
+            <div class="file-preview-list file-preview-list--empty" id="video-reference-images-preview"
+              aria-live="polite">
+            </div>
+            <span class="field__hint">1 to 3 reference images for subject-consistent generation.</span>
+          </label>
+
+          <label class="field">
+            <div class="field__header">
+              <span class="field__label">
+                negative_prompt <span class="type-hint">string</span>
+              </span>
+            </div>
+            <textarea id="video-negative-prompt" name="negative_prompt" class="field__control field__control--textarea"
+              rows="2"></textarea>
+            <span class="field__hint">Description of what to exclude from the generated video</span>
+          </label>
+
+          <label class="field">
+            <span class="field__label">
+              resolution <span class="type-hint">string</span>
+            </span>
+            <select id="video-resolution" name="resolution" class="field__control">
+              <option value="1080p" selected>1080p</option>
+              <option value="720p">720p</option>
+            </select>
+            <span class="field__hint">Resolution of the generated video</span>
+          </label>
+
+          <label class="field field--checkbox">
+            <input id="video-generate-audio" type="checkbox" name="generate_audio" checked />
+            <span class="field__label">generate_audio <span class="type-hint">boolean</span></span>
+            <span class="field__hint">Generate audio with the video</span>
+          </label>
+
+          <label class="field">
+            <span class="field__label">
+              seed <span class="type-hint">integer</span>
+            </span>
+            <input id="video-seed" type="number" name="seed" class="field__control" />
+            <span class="field__hint">Random seed. Omit for random generations</span>
           </label>
 
           <div class="form__actions">
