@@ -59,6 +59,8 @@ const createInitialState = (downloadExtension = "png") => ({
   isLoading: false,
 });
 
+// trigger
+
 const modelStates = {
   "nano-banana": createInitialState("png"),
   "remove-bg": createInitialState("png"),
